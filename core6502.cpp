@@ -77,52 +77,52 @@ nes_mapper _mmc = {
 
 
 
-uchar core_orl(uchar a, uchar operand) {
+__forceinline uchar core_orl(uchar a, uchar operand) {
 	//check D flag for BCD operation, C flag for carry operation, set C if needed
-	uint16 ret;
+	register uint16 ret;
 	ret = a | operand;
 	return ret;
 }
 
-uchar core_and(uchar a, uchar operand) {
+__forceinline uchar core_and(uchar a, uchar operand) {
 	//check D flag for BCD operation, C flag for carry operation, set C if needed
-	uint16 ret;
+	register uint16 ret;
 	ret = a & operand;
 	return ret;
 }
 
-uchar core_xor(uchar a, uchar operand) {
+__forceinline uchar core_xor(uchar a, uchar operand) {
 	//check D flag for BCD operation, C flag for carry operation, set C if needed
-	uint16 ret;
+	register uint16 ret;
 	ret = a ^ operand;
 	return ret;
 }
 
-uchar core_lda(uchar a, uchar operand) {
+__forceinline uchar core_lda(uchar a, uchar operand) {
 	//check D flag for BCD operation, C flag for carry operation, set C if needed
-	uint16 ret;
+	register uint16 ret;
 	ret = operand;
 	return ret;
 }
 
-uchar core_asl(uchar a, uchar l) {
-	uint16 ret;
+__forceinline uchar core_asl(uchar a, uchar l) {
+	register uint16 ret;
 	ret = (uint16)a << l;
 	if (ret & 0x100) _sr |= SR_FLAG_C;
 	else _sr &= ~SR_FLAG_C;
 	return ret;
 }
 
-uchar core_lsr(uchar a, uchar l) {
-	uint16 ret;
+__forceinline uchar core_lsr(uchar a, uchar l) {
+	register uint16 ret;
 	if (a & 0x01) _sr |= SR_FLAG_C;
 	else _sr &= ~SR_FLAG_C;
 	ret = (uint16)a >> l;
 	return ret;
 }
 
-uchar core_rol(uchar a, uchar l) {
-	uint16 ret;
+__forceinline uchar core_rol(uchar a, uchar l) {
+	register uint16 ret;
 	ret = (uint16)a << l;
 	ret |= (_sr & SR_FLAG_C);
 	if (ret & 0x100) _sr |= SR_FLAG_C;
@@ -130,9 +130,9 @@ uchar core_rol(uchar a, uchar l) {
 	return ret;
 }
 
-uchar core_ror(uchar a, uchar l) {
-	uint16 ret;
-	uint8 csr = (_sr & SR_FLAG_C);
+__forceinline uchar core_ror(uchar a, uchar l) {
+	register uint16 ret;
+	register uint8 csr = (_sr & SR_FLAG_C);
 	if (a & 0x01) _sr |= SR_FLAG_C;
 	else _sr &= ~SR_FLAG_C;
 	ret = (uint16)a >> l;
@@ -140,37 +140,32 @@ uchar core_ror(uchar a, uchar l) {
 	return ret;
 }
 
-uchar core_cmp(uchar a, uchar operand) {
-	//check D flag for BCD operation, C flag for carry operation, set C if needed
-	uint16 ret = 0;
-	if (a == operand) {
-		_sr |= SR_FLAG_Z;
-		_sr |= SR_FLAG_C;
-		_sr &= ~SR_FLAG_N;
-	}
-	else if (a > operand) {
-		_sr &= ~SR_FLAG_Z;
-		_sr |= SR_FLAG_C;
-		if((a- operand) & 0x80) _sr |= SR_FLAG_N;
-		else _sr &= ~SR_FLAG_N;
-	}
-	else if (a < operand) {
-		_sr &= ~SR_FLAG_Z;
-		_sr &= ~SR_FLAG_C;
-		if ((a - operand) & 0x80) _sr |= SR_FLAG_N;
-		else _sr &= ~SR_FLAG_N;
-	}
-	return ret;
+#define core_cmp(a, operand, psr) {	\
+	if (a == operand) {	\
+		psr |= SR_FLAG_Z;		\
+		psr |= SR_FLAG_C;		\
+		psr &= ~SR_FLAG_N;	\
+	}	else if (a > operand) {		\
+		psr &= ~SR_FLAG_Z;		\
+		psr |= SR_FLAG_C;		\
+		if((a- operand) & 0x80) psr |= SR_FLAG_N;		\
+		else psr &= ~SR_FLAG_N;		\
+	} else if (a < operand) {		\
+		psr &= ~SR_FLAG_Z;		\
+		psr &= ~SR_FLAG_C;	\
+		if ((a - operand) & 0x80) psr |= SR_FLAG_N;		\
+		else psr &= ~SR_FLAG_N;	\
+	}	\
 }
 
-uchar add_is_overflow(int8 lhs, int8 rhs) {
+__forceinline uchar add_is_overflow(int8 lhs, int8 rhs) {
 	if (lhs > 0 && rhs > 0 && (rhs > (INT8_MAX - lhs))) return 1;
 	if (lhs < 0 && rhs < 0 && (lhs < (INT8_MIN - rhs))) return 1;
 	return 0;
 }
 
-uchar sub_is_overflow(int8 lhs, int8 rhs) {
-	int8 diff = lhs - rhs;
+__forceinline uchar sub_is_overflow(int8 lhs, int8 rhs) {
+	register int8 diff = lhs - rhs;
 	//printf("diff:%x, lhs:%x, rhs:%x\n", diff, lhs, rhs);
 	if (rhs >= 0 && diff > lhs)return 1;
 	if (rhs < 0 && diff < lhs)return 1;
@@ -178,16 +173,16 @@ uchar sub_is_overflow(int8 lhs, int8 rhs) {
 	return 0;
 }
 
-uchar core_add(uchar a, uchar operand) {
+__forceinline uchar core_add(uchar a, uchar operand, uchar* sr) {
 	//check D flag for BCD operation, C flag for carry operation, set C if needed
 	uchar nb = 0;
-	uchar bcr = 0;
-	uint16 ret;
-	if (add_is_overflow(a, operand)) _sr |= SR_FLAG_V;
-	else _sr &= ~SR_FLAG_V;
+	register uchar bcr = 0;
+	register uint16 ret;
+	if (add_is_overflow(a, operand)) sr[0] |= SR_FLAG_V;
+	else sr[0] &= ~SR_FLAG_V;
 	//if (_sr & SR_FLAG_D) {
-	if(0) {
-		nb = ((a & 0x0F) + (operand & 0x0F) + (_sr & SR_FLAG_C));
+	if (0) {
+		nb = ((a & 0x0F) + (operand & 0x0F) + (sr[0] & SR_FLAG_C));
 		bcr = nb / 10;
 		nb = nb % 10;
 		a = (a / 16) + (operand / 16) + bcr;
@@ -198,37 +193,41 @@ uchar core_add(uchar a, uchar operand) {
 		ret = a;
 	}
 	else {
-		ret = a + operand + (_sr & SR_FLAG_C);
+		ret = a + operand + (sr[0] & SR_FLAG_C);
 		if (ret > 255) bcr = 1;
 	}
-	if (bcr) _sr |= SR_FLAG_C;
-	else _sr &= ~SR_FLAG_C;
+	if (bcr) sr[0] |= SR_FLAG_C;
+	else sr[0] &= ~SR_FLAG_C;
 	return ret;
 }
 
-uchar core_sub(int8 a, int8 operand) {
+__forceinline uchar core_sub(int8 a, int8 operand, uchar* sr) {
 	uchar nb = 0;
-	uchar op1;
+	register uchar op1;
 	uchar temp;
 	uint16 res;
 	int16 ires;
-	uchar carry = 0;
+	register uchar carry = 0;
 	uchar bcr = 0;
 	int16 ret = 0;
-	uchar a_0 = a / 16;
-	uchar a_1 = (a & 0x0F) % 10;
-	uchar o_0 = operand / 16;
+	uchar a_0;
+	uchar a_1;
+	uchar o_0;
 	uchar o_1 = (operand & 0x0F) % 10;
-	if (sub_is_overflow(a, operand)) _sr |= SR_FLAG_V;
-	else _sr &= ~SR_FLAG_V;
+	if (sub_is_overflow(a, operand)) sr[0] |= SR_FLAG_V;
+	else sr[0] &= ~SR_FLAG_V;
 	//if (_sr & SR_FLAG_D) {
-	if(0) {
-		if (a_1 < (o_1 + (_sr & SR_FLAG_C))) {
-			nb = a_1 + 10 - (o_1 + (_sr & SR_FLAG_C));
+	if (0) {
+		a_0 = a / 16;
+		a_1 = (a & 0x0F) % 10;
+		o_0 = operand / 16;
+		o_1 = (operand & 0x0F) % 10;
+		if (a_1 < (o_1 + (sr[0] & SR_FLAG_C))) {
+			nb = a_1 + 10 - (o_1 + (sr[0] & SR_FLAG_C));
 			bcr = 1;
 		}
 		else {
-			nb = a_1 - (o_1 + (_sr & SR_FLAG_C));
+			nb = a_1 - (o_1 + (sr[0] & SR_FLAG_C));
 		}
 		if (a_0 < (o_0 + bcr)) {
 			a = a_0 + 10 - (o_0 + bcr);
@@ -243,19 +242,14 @@ uchar core_sub(int8 a, int8 operand) {
 		ret = a;
 	}
 	else {
-		carry = !(_sr & SR_FLAG_C);
+		carry = !(sr[0] & SR_FLAG_C);
 		op1 = _acc;
 		res = (int16)((int8)op1 - carry) - (int16)operand;
 		ires = ((uchar)op1 - (uchar)carry) - (uchar)operand;
 		temp = ires;
-		if (ires & 0x100) { _sr &= ~SR_FLAG_C; }
-		else { _sr |= SR_FLAG_C; }
-		//ret = a - operand - !(_sr & SR_FLAG_C);
-		//if (ret > 255) bcr = 1;
-		//if (ret < 0) bcr = 1;
+		if (ires & 0x100) { sr[0] &= ~SR_FLAG_C; }
+		else { sr[0] |= SR_FLAG_C; }
 	}
-	//if (bcr) _sr &= ~SR_FLAG_C;
-	//else _sr |= SR_FLAG_C;
 
 	ret = temp;
 	return ret;
@@ -343,8 +337,8 @@ uchar core_set_mem(uint16 address, uchar val) {
 }
 
 uint16 core_get_word(uint16 address) {
-	uint16 hh = 0;
-	uchar ll = core_get_mem(address);
+	register uint16 hh = 0;
+	register uchar ll = core_get_mem(address);
 	if ((address & 0xFF) == 0xFF) {
 		hh = core_get_mem(address & 0xFF00);
 	}
@@ -363,1491 +357,1793 @@ void core_debug(char* opcode, uint8 operand, uint16 address) {
 #define CPU_DEBUG(x)	//core_debug(x, operand, address);
 
 
-void core_decode(uchar * opcodes) {
+void core_decode(uchar* opcodes) {
 	uchar opcode = opcodes[0];
-	uchar operand = 0;
-	uint16 address = 0;
+	register uchar operand = 0;
+	register uint16 address = 0;
+	register uint32 ptr;
+	register uint16 lpc = _pc;
+	register uchar lsp = _sp;
+	register uchar lacc = _acc;
+	register uchar lx = _x;
+	register uchar ly = _y;
+	register uchar psr = _sr;
 	switch (opcode) {
-		case 0x00:		//BRK
-			_sr |= SR_FLAG_B;			//set break flag
-			_stack[_sp--] = (_pc + 2) >> 8;			//PCH
-			_stack[_sp--] = (_pc + 2);				//PCL
-			_stack[_sp--] = _sr;					//SR
-			CPU_DEBUG("BRK");
-			//should jump to break interrupt vector (to do)
-			goto skip_flag_test;			//skip checking for accumulator value (zero flag, negative flag)
-			break;
-		case 0x40:			//RTI		return from interrupt pull sr pull pc
-			_sr = _stack[++_sp];
-			_sr &= ~SR_FLAG_B;			//clear break flag
-			opcode = _stack[++_sp];
-			address = _stack[++_sp];
-			_pc = (((uint16)address << 8) | opcode);
-			CPU_DEBUG("RTI");
-			goto skip_flag_test;			//skip checking for accumulator value (zero flag, negative flag)
-			break;
-		case 0x20:			//JSR
-			_stack[_sp--] = (_pc + 2) >> 8;			//PCH
-			_stack[_sp--] = (_pc + 2);				//PCL
-			_pc = ((uint16)opcodes[2] * 256) + opcodes[1];		//absolute addressing mode
-			CPU_DEBUG("JSR");
-			goto skip_flag_test;			//skip checking for accumulator value (zero flag, negative flag)
-			break;
-		case 0x60:			//RTS			return from subroutine
-			opcode = _stack[++_sp];
-			address = _stack[++_sp];
-			_pc = (((uint16)address << 8) | opcode) + 1;
-			CPU_DEBUG("RTS");
-			goto skip_flag_test;			//skip checking for accumulator value (zero flag, negative flag)
-			break;
-		case 0x01:			//ORA Or with accumulator
-		case 0x05:
-		case 0x11:
-		case 0x15:
-		case 0x09:
-		case 0x19:
-		case 0x0d:
-		case 0x1d:
-			switch (opcode & 0x1c) {
-			case 0x00:		//(indirect, X)  (+2)
-				address = (opcodes[1] + (uint16)_x) & 0xFF;
-				_acc = core_orl(_acc, core_get_mem( core_get_word(address)));
-				_pc += 2;
-				break;
-			case 0x04:		//zeropage  (+2)
-				_acc = core_orl(_acc, core_get_mem(opcodes[1]));
-				_pc += 2;
-				break;
-			case 0x08:		//immdt  (+2)
-				_acc = core_orl(_acc, opcodes[1]);
-				_pc += 2;
-				break;
-			case 0x0c:		//absolute (+3)
-				_acc = core_orl(_acc, core_get_mem(((uint16)opcodes[2] * 256) + opcodes[1]));
-				_pc += 3;
-				break;
-			case 0x10:		//(indirect), Y  (+2)
-				_acc = core_orl(_acc, core_get_mem((USE_CARRY + core_get_word(opcodes[1])) + (uint16)_y));
-				_pc += 2;
-				break;
-			case 0x14:		//zeropage, X  (+2)
-				address = (opcodes[1] + _x) & 0xFF;
-				_acc = core_orl(_acc, core_get_mem(address));
-				_pc += 2;
-				break;
-			case 0x18:		//absolute, Y (+3)
-				_acc = core_orl(_acc, core_get_mem((((uint16)opcodes[2] * 256) + opcodes[1]) + _y ));
-				_pc += 3;
-				break;
-			case 0x1c:		//absolute, X (+3)
-				_acc = core_orl(_acc, core_get_mem((((uint16)opcodes[2] * 256) + opcodes[1]) + _x ));
-				_pc += 3;
-				break;
-			}
-			CPU_DEBUG("ORA");
-			break;
-		case 0x0a:				//ASL arithmetic shift left
-			_acc = core_asl(_acc, 1);
-			_pc += 1;
-			CPU_DEBUG("ASL");
-			break;
-		case 0x06:					//ASL arithmetic shift left
-		case 0x0e:
-		case 0x16:
-		case 0x1e:
-			switch (opcode & 0x18) {
-			case 0x00:		//zeropage  (+2)
-				operand = core_asl(core_get_mem(opcodes[1]), 1);
-				core_set_mem(opcodes[1], operand);
-				_pc += 2;
-				break;
-			case 0x08:		//absolute (+3)
-				operand = core_asl(core_get_mem(((uint16)opcodes[2] * 256) + opcodes[1]), 1);
-				core_set_mem(((uint16)opcodes[2] * 256) + opcodes[1], operand);
-				_pc += 3;
-				break;
-			case 0x10:		//zeropage, X  (+2)
-				address = (opcodes[1] + _x) & 0xFF;
-				operand = core_asl(core_get_mem(address), 1);
-				core_set_mem(address, operand);
-				_pc += 2;
-				break;
-			case 0x18:		//absolute, X (+3)
-				address = (((uint16)opcodes[2] * 256) + opcodes[1]) + _x ;
-				operand = core_asl(core_get_mem(address), 1);
-				core_set_mem(address, operand);
-				_pc += 3;
-				break;
-			}
-			CPU_DEBUG("ASL");
-			break;
-		case 0x08:			//PHP			push status register
-			_stack[_sp--] = _sr;
-			_pc += 1;
-			CPU_DEBUG("PHP");
-			goto skip_flag_test;			//skip checking for accumulator value (zero flag, negative flag)
-			break;
-		case 0x28:			//PLP			pull status register		10
-			_sr = _stack[++_sp];
-			_sr &= ~SR_FLAG_B;
-			_pc += 1;
-			CPU_DEBUG("PLP");
-			goto skip_flag_test;			//skip checking for accumulator value (zero flag, negative flag)
-			break;
-		case 0x48:			//PHA			push accumulator
-			_stack[_sp--] = _acc;
-			_pc += 1;
-			CPU_DEBUG("PHA");
-			goto skip_flag_test;			//skip checking for accumulator value (zero flag, negative flag)
-			break;
-		case 0x68:			//PLA			pull accumulator
-			_acc = _stack[++_sp];
-			_pc += 1;
-			CPU_DEBUG("PLA");
-			break;
-		case 0x18:			//CLC
-			_sr &= ~SR_FLAG_C;
-			_pc += 1;
-			CPU_DEBUG("CLC");
-			goto skip_flag_test;			//skip checking for accumulator value (zero flag, negative flag)
-			break;
-		case 0x58:			//CLI
-			_sr &= ~SR_FLAG_I;
-			_pc += 1;
-			CPU_DEBUG("CLI");
-			goto skip_flag_test;			//skip checking for accumulator value (zero flag, negative flag)
-			break;
-		case 0xB8:			//CLV
-			_sr &= ~SR_FLAG_V;
-			_pc += 1;
-			CPU_DEBUG("CLV");
-			goto skip_flag_test;			//skip checking for accumulator value (zero flag, negative flag)
-			break;
-		case 0xD8:			//CLD
-			_sr &= ~SR_FLAG_D;
-			_pc += 1;
-			CPU_DEBUG("CLD");
-			goto skip_flag_test;			//skip checking for accumulator value (zero flag, negative flag)
-			break;
-		case 0x24:			//BIT
-		case 0x2c:
-			switch (opcode & 0x08) {
-			case 0x00:		//zeropage
-				operand = core_get_mem(opcodes[1]);
-				if (operand & 0x80) _sr |= SR_FLAG_N;
-				else _sr &= ~SR_FLAG_N;
-				if (operand & 0x40) _sr |= SR_FLAG_V;
-				else _sr &= ~SR_FLAG_V;
-				if (core_and(_acc, operand) == 0) _sr |= SR_FLAG_Z;
-				else _sr &= ~SR_FLAG_Z;
-				_pc += 2;
-				break;
-			case 0x08:		//absolute
-				operand = core_get_mem(((uint16)opcodes[2] * 256) + opcodes[1]);
-				if (operand & 0x80) _sr |= SR_FLAG_N;
-				else _sr &= ~SR_FLAG_N;
-				if (operand & 0x40) _sr |= SR_FLAG_V;
-				else _sr &= ~SR_FLAG_V;
-				if (core_and(_acc, operand) == 0) _sr |= SR_FLAG_Z;
-				else _sr &= ~SR_FLAG_Z;
-				_pc += 3;
-				break;
-			}
-			CPU_DEBUG("BIT");
-			goto skip_flag_test;			//skip checking for accumulator value (zero flag, negative flag)
-			break;
-		case 0x21:			//AND
-		case 0x25:
-		case 0x35:
-		case 0x31:
-		case 0x29:
-		case 0x39:
-		case 0x2d:
-		case 0x3d:
-			switch (opcode & 0x1c) {
-			case 0x00:		//(indirect, X)  (+2)
-				address = (opcodes[1] + (uint16)_x) & 0xFF;
-				_acc = core_and(_acc, core_get_mem(USE_CARRY + core_get_word(address)));
-				_pc += 2;
-				break;
-			case 0x04:		//zeropage  (+2)
-				_acc = core_and(_acc, core_get_mem(opcodes[1]));
-				_pc += 2;
-				break;
-			case 0x08:		//immdt  (+2)
-				_acc = core_and(_acc, opcodes[1]);
-				_pc += 2;
-				break;
-			case 0x0c:		//absolute (+3)
-				_acc = core_and(_acc, core_get_mem(((uint16)opcodes[2] * 256) + opcodes[1]));
-				_pc += 3;
-				break;
-			case 0x10:		//(indirect), Y  (+2)
-				_acc = core_and(_acc, core_get_mem((USE_CARRY + core_get_word(opcodes[1])) + (uint16)_y));
-				_pc += 2;
-				break;
-			case 0x14:		//zeropage, X  (+2)
-				_acc = core_and(_acc, core_get_mem((opcodes[1] + _x) & 0xFF));
-				_pc += 2;
-				break;
-			case 0x18:		//absolute, Y (+3)
-				_acc = core_and(_acc, core_get_mem((((uint16)opcodes[2] * 256) + opcodes[1]) + _y));
-				_pc += 3;
-				break;
-			case 0x1c:		//absolute, X (+3)
-				_acc = core_and(_acc, core_get_mem((((uint16)opcodes[2] * 256) + opcodes[1]) + _x));
-				_pc += 3;
-				break;
-			}
-			CPU_DEBUG("AND");
-			break;
-		case 0x2a:			//ROL accumulator
-			_acc = core_rol(_acc, 1);
-			_pc += 1;
-			CPU_DEBUG("ROL");
-			break;
-		case 0x26:			//ROL
-		case 0x2e:
-		case 0x36:
-		case 0x3e:
-			switch (opcode & 0x18) {
-			case 0x00:		//zeropage  (+2)
-				operand = core_rol(core_get_mem(opcodes[1]), 1);
-				core_set_mem(opcodes[1], operand);
-				_pc += 2;
-				break;
-			case 0x08:		//absolute (+3)
-				operand = core_rol(core_get_mem(((uint16)opcodes[2] * 256) + opcodes[1]), 1);
-				core_set_mem(((uint16)opcodes[2] * 256) + opcodes[1], operand);
-				_pc += 3;
-				break;
-			case 0x10:		//zeropage, X  (+2)
-				address = (opcodes[1] + _x) & 0xFF;
-				operand = core_rol(core_get_mem(address), 1);
-				core_set_mem(address, operand);
-				_pc += 2;
-				break;
-			case 0x18:		//absolute, X (+3)
-				address = (((uint16)opcodes[2] * 256) + opcodes[1]) + _x ;
-				operand = core_rol(core_get_mem(address), 1);
-				core_set_mem(address, operand);
-				_pc += 3;
-				break;
-			}
-			CPU_DEBUG("ROL");
-			break;
-		case 0x4c:			//JMP
-		case 0x6c:
-			switch (opcode & 0x20) {
-			case 0x00:			//absolute
-				_pc = ((uint16)opcodes[2] * 256) + opcodes[1];
-				break;
-			case 0x20:			//indirect
-				if (opcodes[1] != 0xFF) {
-					_pc = core_get_word(((uint16)opcodes[2] * 256) + opcodes[1]);
-				}
-				else {
-					operand = core_get_mem(((uint16)opcodes[2] * 256) + opcodes[1]);
-					address = core_get_mem(((uint16)opcodes[2] * 256) );
-					address = (address << 8) | operand;
-					_pc = address;
-				}
-				break;
-			}
-			CPU_DEBUG("JMP");
-			goto skip_flag_test;			//skip checking for accumulator value (zero flag, negative flag)
-			break;
-		case 0x41:			//EOR
-		case 0x51:
-		case 0x45:
-		case 0x55:
-		case 0x49:
-		case 0x4d:
-		case 0x59:
-		case 0x5d:
-			switch (opcode & 0x1c) {
-			case 0x00:		//(indirect, X)  (+2)
-				address = (opcodes[1] + (uint16)_x) & 0xFF;
-				_acc = core_xor(_acc, core_get_mem(USE_CARRY + core_get_word(address)));
-				_pc += 2;
-				break;
-			case 0x04:		//zeropage  (+2)
-				_acc = core_xor(_acc, core_get_mem(opcodes[1]));
-				_pc += 2;
-				break;
-			case 0x08:		//immdt  (+2)
-				_acc = core_xor(_acc, opcodes[1]);
-				_pc += 2;
-				break;
-			case 0x0c:		//absolute (+3)
-				_acc = core_xor(_acc, core_get_mem(((uint16)opcodes[2] * 256) + opcodes[1]));
-				_pc += 3;
-				break;
-			case 0x10:		//(indirect), Y  (+2)
-				_acc = core_xor(_acc, core_get_mem((USE_CARRY + core_get_word(opcodes[1])) + (uint16)_y));
-				_pc += 2;
-				break;
-			case 0x14:		//zeropage, X  (+2)
-				_acc = core_xor(_acc, core_get_mem((opcodes[1] + _x) & 0xFF));
-				_pc += 2;
-				break;
-			case 0x18:		//absolute, Y (+3)
-				_acc = core_xor(_acc, core_get_mem((((uint16)opcodes[2] * 256) + opcodes[1]) + _y));
-				_pc += 3;
-				break;
-			case 0x1c:		//absolute, X (+3)
-				_acc = core_xor(_acc, core_get_mem((((uint16)opcodes[2] * 256) + opcodes[1]) + _x));
-				_pc += 3;
-				break;
-			}
-			CPU_DEBUG("EOR");
-			break;
-		case 0x4a:			//LSR accumulator
-			_acc = core_lsr(_acc, 1);
-			_pc += 1;
-			CPU_DEBUG("LSR");
-			break;
-		case 0x46:			//LSR
-		case 0x4e:
-		case 0x56:
-		case 0x5e:
-			switch (opcode & 0x18) {
-			case 0x00:		//zeropage  (+2)
-				operand = core_lsr(core_get_mem(opcodes[1]), 1);
-				core_set_mem(opcodes[1], operand);
-				_pc += 2;
-				break;
-			case 0x08:		//absolute (+3)
-				operand = core_lsr(core_get_mem(((uint16)opcodes[2] * 256) + opcodes[1]), 1);
-				core_set_mem(((uint16)opcodes[2] * 256) + opcodes[1], operand);
-				_pc += 3;
-				break;
-			case 0x10:		//zeropage, X  (+2)
-				address = (opcodes[1] + _x) & 0xFF;
-				operand = core_lsr(core_get_mem(address), 1);
-				core_set_mem(address, operand);
-				_pc += 2;
-				break;
-			case 0x18:		//absolute, X (+3)
-				address = (((uint16)opcodes[2] * 256) + opcodes[1]) + _x ;
-				operand = core_lsr(core_get_mem(address), 1);
-				core_set_mem(address, operand);
-				_pc += 3;
-				break;
-			}
-			CPU_DEBUG("LSR");
-			break;
-		case 0x61:			//ADC		22
-		case 0x65:
-		case 0x69:
-		case 0x6d:
-		case 0x71:
-		case 0x75:
-		case 0x79:
-		case 0x7d:
-			switch (opcode & 0x1c) {
-				case 0x00:		//(indirect, X)  (+2)
-					address = (opcodes[1] + (uint16)_x) & 0xFF;
-					_acc = core_add(_acc, core_get_mem(USE_CARRY + core_get_word(address)));
-					_pc += 2;
-					break;
-				case 0x04:		//zeropage  (+2)
-					_acc = core_add(_acc, core_get_mem(opcodes[1]));
-					_pc += 2;
-					break;
-				case 0x08:		//immdt  (+2)
-					_acc = core_add(_acc, opcodes[1]);
-					_pc += 2;
-					break;
-				case 0x0c:		//absolute (+3)
-					_acc = core_add(_acc, core_get_mem(((uint16)opcodes[2] * 256) + opcodes[1]));
-					_pc += 3;
-					break;
-				case 0x10:		//(indirect), Y  (+2)
-					_acc = core_add(_acc, core_get_mem((USE_CARRY + core_get_word(opcodes[1])) +(uint16)_y));
-					_pc += 2;
-					break;
-				case 0x14:		//zeropage, X  (+2)
-					_acc = core_add(_acc, core_get_mem((opcodes[1] + _x) & 0xFF));
-					_pc += 2;
-					break;
-				case 0x18:		//absolute, Y (+3)
-					_acc = core_add(_acc, core_get_mem( (((uint16)opcodes[2] * 256) + opcodes[1]) + _y ));
-					_pc += 3;
-					break;
-				case 0x1c:		//absolute, X (+3)
-					_acc = core_add(_acc, core_get_mem((((uint16)opcodes[2] * 256) + opcodes[1]) + _x ));
-					_pc += 3;
-					break;
-			}
-			CPU_DEBUG("ADC");
-			break;
-		case 0x6a:			//ROR accumulator
-			_acc = core_ror(_acc, 1);
-			_pc += 1;
-			CPU_DEBUG("ROR");
-			break;
-		case 0x66:			//ROR
-		case 0x6e:
-		case 0x76:
-		case 0x7e:
-			switch (opcode & 0x18) {
-			case 0x00:		//zeropage  (+2)
-				operand = core_ror(core_get_mem(opcodes[1]), 1);
-				core_set_mem(opcodes[1], operand);
-				_pc += 2;
-				break;
-			case 0x08:		//absolute (+3)
-				operand = core_ror(core_get_mem(((uint16)opcodes[2] * 256) + opcodes[1]), 1);
-				core_set_mem(((uint16)opcodes[2] * 256) + opcodes[1], operand);
-				_pc += 3;
-				break;
-			case 0x10:		//zeropage, X  (+2)
-				address = (opcodes[1] + _x) & 0xFF;
-				operand = core_ror(core_get_mem(address), 1);
-				core_set_mem(address, operand);
-				_pc += 2;
-				break;
-			case 0x18:		//absolute, X (+3)
-				address = (((uint16)opcodes[2] * 256) + opcodes[1]) + _x  ;
-				operand = core_ror(core_get_mem(address), 1);
-				core_set_mem(address, operand);
-				_pc += 3;
-				break;
-			}
-			CPU_DEBUG("ROR");
-			break;
-		case 0x81:			//STA
-		case 0x85:
-		case 0x8d:
-		case 0x91:
-		case 0x95:
-		case 0x99:
-		case 0x9d:
-			switch (opcode & 0x1c) {
-			case 0x00:		//(indirect, X)  (+2)
-				address = (opcodes[1] + (uint16)_x) & 0xFF;
-				core_set_mem(USE_CARRY + core_get_word(address), _acc);
-				_pc += 2;
-				break;
-			case 0x04:		//zeropage  (+2)
-				core_set_mem(opcodes[1], _acc);
-				_pc += 2;
-				break;
-			case 0x0c:		//absolute (+3)
-				core_set_mem(((uint16)opcodes[2] * 256) + opcodes[1], _acc);
-				_pc += 3;
-				break;
-			case 0x10:		//(indirect), Y  (+2)
-				core_set_mem((USE_CARRY + core_get_word(opcodes[1])) + (uint16)_y, _acc);
-				_pc += 2;
-				break;
-			case 0x14:		//zeropage, X  (+2)
-				core_set_mem((opcodes[1] + _x) & 0xFF, _acc);
-				_pc += 2;
-				break;
-			case 0x18:		//absolute, Y (+3)
-				core_set_mem((((uint16)opcodes[2] * 256) + opcodes[1]) + _y, _acc);
-				_pc += 3;
-				break;
-			case 0x1c:		//absolute, X (+3)
-				core_set_mem((((uint16)opcodes[2] * 256) + opcodes[1]) + _x, _acc);
-				_pc += 3;
-				break;
-			}
-			CPU_DEBUG("STA");
-			goto skip_flag_test;			//skip checking for accumulator value (zero flag, negative flag)
-		case 0x84:			//STY
-		case 0x8c:
-		case 0x94:
-			switch (opcode & 0x18) {
-			case 0x00:		//zeropage  (+2)
-				core_set_mem(opcodes[1], _y);
-				_pc += 2;
-				break;
-			case 0x08:		//absolute (+3)
-				core_set_mem(((uint16)opcodes[2] * 256) + opcodes[1], _y);
-				_pc += 3;
-				break;
-			case 0x10:		//zeropage, X  (+2)
-				core_set_mem((opcodes[1] + _x) & 0xFF, _y);
-				_pc += 2;
-				break;
-			}
-			CPU_DEBUG("STY");
-			goto skip_flag_test;			//skip checking for accumulator value (zero flag, negative flag)
-		case 0x86:			//STX
-		case 0x8e:
-		case 0x96:
-			switch (opcode & 0x18) {
-			case 0x00:		//zeropage  (+2)
-				core_set_mem(opcodes[1], _x);
-				_pc += 2;
-				break;
-			case 0x08:		//absolute (+3)
-				core_set_mem(((uint16)opcodes[2] * 256) + opcodes[1], _x);
-				_pc += 3;
-				break;
-			case 0x10:		//zeropage, Y  (+2)
-				core_set_mem((opcodes[1] + _y) & 0xFF, _x);
-				_pc += 2;
-				break;
-			}
-			CPU_DEBUG("STX");
-			goto skip_flag_test;			//skip checking for accumulator value (zero flag, negative flag)
-		case 0xA0:			//LDY
-			_y = opcodes[1];
-			_pc += 2;
-			if (_y == 0) _sr |= SR_FLAG_Z;
-			else _sr &= ~SR_FLAG_Z;
-			if (_y & 0x80) _sr |= SR_FLAG_N;
-			else _sr &= ~SR_FLAG_N;
-			CPU_DEBUG("LDY");
-			goto skip_flag_test;			//skip checking for accumulator value (zero flag, negative flag)
-			break;
-		case 0xA4:			//LDY
-		case 0xAc:
-		case 0xB4:
-		case 0xBc:
-			switch (opcode & 0x18) {
-			case 0x00:		//zeropage  (+2)
-				_y = core_get_mem(opcodes[1]);
-				_pc += 2;
-				break;
-			case 0x08:		//absolute (+3)
-				_y = core_get_mem(((uint16)opcodes[2] * 256) + opcodes[1]);
-				_pc += 3;
-				break;
-			case 0x10:		//zeropage, X  (+2)
-				_y = core_get_mem((opcodes[1] + _x) & 0xFF);
-				_pc += 2;
-				break;
-			case 0x18:		//absolute, X (+3)
-				address = (((uint16)opcodes[2] * 256) + opcodes[1]) + _x ;
-				_y = core_get_mem(address);
-				_pc += 3;
-				break;
-			}
-			if (_y == 0) _sr |= SR_FLAG_Z;
-			else _sr &= ~SR_FLAG_Z;
-			if (_y & 0x80) _sr |= SR_FLAG_N;
-			else _sr &= ~SR_FLAG_N;
-			CPU_DEBUG("LDY");
-			goto skip_flag_test;			//skip checking for accumulator value (zero flag, negative flag)
-			break;
-		case 0xA1:			//LDA
-		case 0xA5:
-		case 0xA9:
-		case 0xAd:
-		case 0xB1:		
-		case 0xB5:
-		case 0xB9:
-		case 0xBd:
-			if (_pc == 0x86ff) {
-				_pc = _pc;
-			}
-			switch (opcode & 0x1c) {
-			case 0x00:		//(indirect, X)  (+2)
-				address = (opcodes[1] + (uint16)_x) & 0xFF;
-				_acc = core_lda(_acc, core_get_mem(USE_CARRY + core_get_word( address )));
-				_pc += 2;
-				break;
-			case 0x04:		//zeropage  (+2)
-				address = opcodes[1];
-				_acc = core_lda(_acc, core_get_mem(address));
-				_pc += 2;
-				break;
-			case 0x08:		//immdt  (+2)
-				_acc = core_lda(_acc, opcodes[1]);
-				_pc += 2;
-				break;
-			case 0x0c:		//absolute (+3)
-				address = ((uint16)opcodes[2] * 256) + opcodes[1];
-				_acc = core_lda(_acc, core_get_mem(address));
-				_pc += 3;
-				break;
-			case 0x10:		//(indirect), Y  (+2)
-				address = (core_get_word(opcodes[1])) + (uint16)_y;
-				_acc = core_lda(_acc, core_get_mem(address));
-				_pc += 2;
-				break;
-			case 0x14:		//zeropage, X  (+2)
-				address = (opcodes[1] + _x) & 0xFF;
-				_acc = core_lda(_acc, core_get_mem(address));
-				_pc += 2;
-				break;
-			case 0x18:		//absolute, Y (+3)
-				address = (((uint16)opcodes[2] * 256) + opcodes[1]) + _y;
-				_acc = core_lda(_acc, core_get_mem(address));
-				_pc += 3;
-				break;
-			case 0x1c:		//absolute, X (+3)
-				address = (((uint16)opcodes[2] * 256) + opcodes[1]) + _x;
-				_acc = core_lda(_acc, core_get_mem(address ));
-				_pc += 3;
-				break;
-			}
-			CPU_DEBUG("LDA");
-			break;
-		case 0xA2:			//LDX
-			_x = opcodes[1];
-			_pc += 2;
-			if (_x == 0) _sr |= SR_FLAG_Z;
-			else _sr &= ~SR_FLAG_Z;
-			if (_x & 0x80) _sr |= SR_FLAG_N;
-			else _sr &= ~SR_FLAG_N;
-			CPU_DEBUG("LDX");
-			goto skip_flag_test;			//skip checking for accumulator value (zero flag, negative flag)
-		case 0xA6:
-		case 0xAe:
-		case 0xB6:
-		case 0xBe:
-			switch (opcode & 0x18) {
-			case 0x00:		//zeropage  (+2)
-				_x = core_get_mem(opcodes[1]);
-				_pc += 2;
-				break;
-			case 0x08:		//absolute (+3)
-				_x = core_get_mem(((uint16)opcodes[2] * 256) + opcodes[1]);
-				_pc += 3;
-				break;
-			case 0x10:		//zeropage, Y  (+2)
-				_x = core_get_mem((opcodes[1] + _y) & 0xFF);
-				_pc += 2;
-				break;
-			case 0x18:		//absolute, Y (+3)
-				address = (((uint16)opcodes[2] * 256) + opcodes[1]) + _y ;
-				_x = core_get_mem(address);
-				_pc += 3;
-				break;
-			}
-			if (_x == 0) _sr |= SR_FLAG_Z;
-			else _sr &= ~SR_FLAG_Z;
-			if (_x & 0x80) _sr |= SR_FLAG_N;
-			else _sr &= ~SR_FLAG_N;
-			CPU_DEBUG("LDX");
-			goto skip_flag_test;			//skip checking for accumulator value (zero flag, negative flag)
-			break;
-		case 0xA8:			//TAY		accumulator to y
-			_y = _acc;
-			_pc += 1;
-			if (_y == 0) _sr |= SR_FLAG_Z;
-			else _sr &= ~SR_FLAG_Z;
-			if (_y & 0x80) _sr |= SR_FLAG_N;
-			else _sr &= ~SR_FLAG_N;
-			CPU_DEBUG("TAY");
-			goto skip_flag_test;			//skip checking for accumulator value (zero flag, negative flag)
-			break;
-		case 0xAA:			//TAX		accumulator to x
-			_x = _acc;
-			_pc += 1;
-			if (_x == 0) _sr |= SR_FLAG_Z;
-			else _sr &= ~SR_FLAG_Z;
-			if (_x & 0x80) _sr |= SR_FLAG_N;
-			else _sr &= ~SR_FLAG_N;
-			CPU_DEBUG("TAX");
-			goto skip_flag_test;			//skip checking for accumulator value (zero flag, negative flag)
-			break;
-		case 0xBA:			//TSX		sp to x
-			_x = _sp;
-			_pc += 1;
-			if (_x == 0) _sr |= SR_FLAG_Z;
-			else _sr &= ~SR_FLAG_Z;
-			if (_x & 0x80) _sr |= SR_FLAG_N;
-			else _sr &= ~SR_FLAG_N;
-			CPU_DEBUG("TSX");
-			goto skip_flag_test;			//skip checking for accumulator value (zero flag, negative flag)
-			break;
-		case 0x8A:			//TXA		x to accumulator
-			_acc = _x;
-			_pc += 1;
-			CPU_DEBUG("TXA");
-			break;
-		case 0x98:			//TYA		y to accumulator
-			_acc = _y;
-			_pc += 1;
-			CPU_DEBUG("TYA");
-			break;
-		case 0x9A:			//TXS		x to stack pointer
-			_sp = _x;
-			_pc += 1;
-			CPU_DEBUG("TXS");
-			goto skip_flag_test;			//skip checking for accumulator value (zero flag, negative flag)
-			break;
-		case 0xC0:			//CPY
-		case 0xC4:
-		case 0xCc:
-			switch (opcode & 0x0C) {
-			case 0x00:		//immediate  (+2)
-				core_cmp(_y, opcodes[1]);
-				_pc += 2;
-				break;
-			case 0x04:		//zeropage  (+2)
-				core_cmp(_y, core_get_mem(opcodes[1]));
-				_pc += 2;
-				break;
-			case 0x0C:		//absolute (+3)
-				core_cmp(_y, core_get_mem(((uint16)opcodes[2] * 256) + opcodes[1]));
-				_pc += 3;
-				break;
-			}
-			CPU_DEBUG("CPY");
-			goto skip_flag_test;			//skip checking for accumulator value (zero flag, negative flag)
-			break;
-		case 0xC1:			//CMP
-		case 0xC5:
-		case 0xC9:
-		case 0xCd:
-		case 0xd1:			
-		case 0xd5:
-		case 0xd9:
-		case 0xdd:
-			switch (opcode & 0x1c) {
-			case 0x00:		//(indirect, X)  (+2)
-				address = (opcodes[1] + (uint16)_x) & 0xFF;
-				core_cmp(_acc, core_get_mem(USE_CARRY + core_get_word(address)));
-				_pc += 2;
-				break;
-			case 0x04:		//zeropage  (+2)
-				core_cmp(_acc, core_get_mem(opcodes[1]));
-				_pc += 2;
-				break;
-			case 0x08:		//immdt  (+2)
-				core_cmp(_acc, opcodes[1]);
-				_pc += 2;
-				break;
-			case 0x0c:		//absolute (+3)
-				core_cmp(_acc, core_get_mem(((uint16)opcodes[2] * 256) + opcodes[1]));
-				_pc += 3;
-				break;
-			case 0x10:		//(indirect), Y  (+2)
-				core_cmp(_acc, core_get_mem((USE_CARRY + core_get_word(opcodes[1])) + (uint16)_y));
-				_pc += 2;
-				break;
-			case 0x14:		//zeropage, X  (+2)
-				core_cmp(_acc, core_get_mem((opcodes[1] + _x) & 0xFF));
-				_pc += 2;
-				break;
-			case 0x18:		//absolute, Y (+3)
-				core_cmp(_acc, core_get_mem((((uint16)opcodes[2] * 256) + opcodes[1]) + _y ));
-				_pc += 3;
-				break;
-			case 0x1c:		//absolute, X (+3)
-				core_cmp(_acc, core_get_mem((((uint16)opcodes[2] * 256) + opcodes[1]) + _x ));
-				_pc += 3;
-				break;
-			}
-			CPU_DEBUG("CMP");
-			goto skip_flag_test;			//skip checking for accumulator value (zero flag, negative flag)
-			break;
-		case 0xC6:			//DEC
-		case 0xCE:
-		case 0xD6:
-		case 0xDE:
-			switch (opcode & 0x18) {
-			case 0x00:		//zeropage  (+2)
-				operand = core_get_mem(opcodes[1]);
-				operand--;
-				core_set_mem(opcodes[1], operand);
-				_pc += 2;
-				break;
-			case 0x08:		//absolute (+3)
-				operand = core_get_mem(((uint16)opcodes[2] * 256) + opcodes[1]);
-				operand--;
-				core_set_mem(((uint16)opcodes[2] * 256) + opcodes[1], operand);
-				_pc += 3;
-				break;
-			case 0x10:		//zeropage, X  (+2)
-				address = (opcodes[1] + _x) & 0xFF;
-				operand = core_get_mem(address);
-				operand--;
-				core_set_mem(address, operand);
-				_pc += 2;
-				break;
-			case 0x18:		//absolute, X (+3)
-				address = (((uint16)opcodes[2] * 256) + opcodes[1]) + _x;
-				operand = core_get_mem( address );
-				operand--;
-				core_set_mem(address , operand);
-				_pc += 3;
-				break;
-			}
-			if (operand == 0) _sr |= SR_FLAG_Z;
-			else _sr &= ~SR_FLAG_Z;
-			if (operand & 0x80) _sr |= SR_FLAG_N;
-			else _sr &= ~SR_FLAG_N;
-			CPU_DEBUG("DEC");
-			goto skip_flag_test;			//skip checking for accumulator value (zero flag, negative flag)
-			break;
-		case 0xC8:			//INY		increment y
-			_y++;
-			_pc += 1;
-			if (_y == 0) _sr |= SR_FLAG_Z;
-			else _sr &= ~SR_FLAG_Z;
-			if (_y & 0x80) _sr |= SR_FLAG_N;
-			else _sr &= ~SR_FLAG_N;
-			CPU_DEBUG("INY");
-			goto skip_flag_test;			//skip checking for accumulator value (zero flag, negative flag)
-			break;
-		case 0xCA:			//DEX		decrement x
-			_x--;
-			_pc += 1;
-			if (_x == 0) _sr |= SR_FLAG_Z;
-			else _sr &= ~SR_FLAG_Z;
-			if (_x & 0x80) _sr |= SR_FLAG_N;
-			else _sr &= ~SR_FLAG_N;
-			CPU_DEBUG("DEX");
-			goto skip_flag_test;			//skip checking for accumulator value (zero flag, negative flag)
-			break;
-		case 0x88:			//DEY			30
-			_y--;
-			_pc += 1;
-			if (_y == 0) _sr |= SR_FLAG_Z;
-			else _sr &= ~SR_FLAG_Z;
-			if (_y & 0x80) _sr |= SR_FLAG_N;
-			else _sr &= ~SR_FLAG_N;
-			CPU_DEBUG("DEY");
-			goto skip_flag_test;			//skip checking for accumulator value (zero flag, negative flag)
-			break;
-		case 0xe8:			//INX
-			_x++;
-			_pc += 1;
-			if (_x == 0) _sr |= SR_FLAG_Z;
-			else _sr &= ~SR_FLAG_Z;
-			if (_x & 0x80) _sr |= SR_FLAG_N;
-			else _sr &= ~SR_FLAG_N;
-			CPU_DEBUG("INX");
-			goto skip_flag_test;			//skip checking for accumulator value (zero flag, negative flag)
-			break;
-		case 0xE0:			//CPX			50
-		case 0xE4:
-		case 0xEC:
-			switch (opcode & 0x0C) {
-			case 0x00:		//immediate  (+2)
-				core_cmp(_x, opcodes[1]);
-				_pc += 2;
-				break;
-			case 0x04:		//zeropage  (+2)
-				core_cmp(_x, core_get_mem(opcodes[1]));
-				_pc += 2;
-				break;
-			case 0x0C:		//absolute (+3)
-				core_cmp(_x, core_get_mem(((uint16)opcodes[2] * 256) + opcodes[1]));
-				_pc += 3;
-				break;
-			}
-			CPU_DEBUG("CPX");
-			goto skip_flag_test;			//skip checking for accumulator value (zero flag, negative flag)
-			break;
-		case 0xE1:			//SBC		
-		case 0xE5:
-		case 0xE9:
-		case 0xF9:
-		case 0xF5:
-		case 0xF1:
-		case 0xED:
-		case 0xFD:
-			switch (opcode & 0x1c) {
-			case 0x00:		//(indirect, X)  (+2)
-				address = (opcodes[1] + (uint16)_x) & 0xFF;
-				_acc = core_sub(_acc, core_get_mem(USE_CARRY + core_get_word(address)));
-				_pc += 2;
-				break;
-			case 0x04:		//zeropage  (+2)
-				_acc = core_sub(_acc, core_get_mem(opcodes[1]));
-				_pc += 2;
-				break;
-			case 0x08:		//immdt  (+2)
-				_acc = core_sub(_acc, opcodes[1]);
-				_pc += 2;
-				break;
-			case 0x0c:		//absolute (+3)
-				_acc = core_sub(_acc, core_get_mem(((uint16)opcodes[2] * 256) + opcodes[1]));
-				_pc += 3;
-				break;
-			case 0x10:		//(indirect), Y  (+2)
-				_acc = core_sub(_acc, core_get_mem((USE_CARRY + core_get_word(opcodes[1])) + (uint16)_y));
-				_pc += 2;
-				break;
-			case 0x14:		//zeropage, X  (+2)
-				_acc = core_sub(_acc, core_get_mem((opcodes[1] + _x) & 0xFF));
-				_pc += 2;
-				break;
-			case 0x18:		//absolute, Y (+3)
-				_acc = core_sub(_acc, core_get_mem((((uint16)opcodes[2] * 256) + opcodes[1]) + _y ));
-				_pc += 3;
-				break;
-			case 0x1c:		//absolute, X (+3)
-				_acc = core_sub(_acc, core_get_mem((((uint16)opcodes[2] * 256) + opcodes[1]) + _x ));
-				_pc += 3;
-				break;
-			}
-			CPU_DEBUG("SBC");
-			break;
-		case 0xe6:			//INC
-		case 0xeE:
-		case 0xfE:
-		case 0xf6:
-			switch (opcode & 0x18) {
-			case 0x00:		//zeropage  (+2)
-				operand = core_get_mem(opcodes[1]);
-				operand++;
-				core_set_mem(opcodes[1], operand );
-				_pc += 2;
-				break;
-			case 0x08:		//absolute (+3)
-				operand = core_get_mem(((uint16)opcodes[2] * 256) + opcodes[1]);
-				operand++;
-				core_set_mem(((uint16)opcodes[2] * 256) + opcodes[1], operand );
-				_pc += 3;
-				break;
-			case 0x10:		//zeropage, X  (+2)
-				address = (opcodes[1] + _x) & 0xFF;
-				operand = core_get_mem(address);
-				operand++;
-				core_set_mem(address, operand );
-				_pc += 2;
-				break;
-			case 0x18:		//absolute, X (+3)
-				address = (((uint16)opcodes[2] * 256) + opcodes[1]) + _x;
-				operand = core_get_mem( address );
-				operand++;
-				core_set_mem( address , operand );
-				_pc += 3;
-				break;
-			}
-			if (operand == 0) _sr |= SR_FLAG_Z;
-			else _sr &= ~SR_FLAG_Z;
-			if (operand & 0x80) _sr |= SR_FLAG_N;
-			else _sr &= ~SR_FLAG_N;
-			CPU_DEBUG("INC");
-			goto skip_flag_test;			//skip checking for accumulator value (zero flag, negative flag)
-			break;
-		case 0xea:			//NOP
-			_pc += 1;
-			CPU_DEBUG("NOP");
-			goto skip_flag_test;			//skip checking for accumulator value (zero flag, negative flag)
-			break;
-		case 0xF0:			//BEQ  branch on equal
-			if ((_sr & SR_FLAG_Z)) _pc += (int8)opcodes[1];
-			_pc += 2;
-			CPU_DEBUG("BEQ");
-			goto skip_flag_test;			//skip checking for accumulator value (zero flag, negative flag)
-			break;
-		case 0xD0:			//BNE  branch on not equal
-			if ((_sr & SR_FLAG_Z) == 0) _pc += (int8)opcodes[1];
-			_pc += 2;
-			CPU_DEBUG("BNE");
-			goto skip_flag_test;			//skip checking for accumulator value (zero flag, negative flag)
-			break;
-		case 0xB0:			//BCS	branch on carry set	40
-			if ((_sr & SR_FLAG_C)) _pc += (int8)opcodes[1];
-			_pc += 2;
-			CPU_DEBUG("BCS");
-			goto skip_flag_test;			//skip checking for accumulator value (zero flag, negative flag)
-			break;
-		case 0x90:			//BCC  branch on carry clear
-			if ((_sr & SR_FLAG_C) == 0) _pc += (int8)opcodes[1];
-			_pc += 2;
-			CPU_DEBUG("BCC");
-			goto skip_flag_test;			//skip checking for accumulator value (zero flag, negative flag)
-			break;
-		case 0x70:			//BVS   branch on overflow set
-			if ((_sr & SR_FLAG_V)) _pc += (int8)opcodes[1];
-			_pc += 2;
-			CPU_DEBUG("BVS");
-			goto skip_flag_test;			//skip checking for accumulator value (zero flag, negative flag)
-			break;
-		case 0x50:			//BVC  branch on overflow clear
-			if ((_sr & SR_FLAG_V) == 0) _pc += (int8)opcodes[1];
-			_pc += 2;
-			CPU_DEBUG("BVC");
-			goto skip_flag_test;			//skip checking for accumulator value (zero flag, negative flag)
-			break;
-		case 0x30:			//BMI   branch on minus
-			if ((_sr & SR_FLAG_N)) _pc += (int8)opcodes[1];
-			_pc += 2;
-			CPU_DEBUG("BMI");
-			goto skip_flag_test;			//skip checking for accumulator value (zero flag, negative flag)
-			break;
-		case 0x10:			//BPL branch on plus
-			if ((_sr & SR_FLAG_N) == 0) _pc += (int8)opcodes[1];
-			_pc += 2;
-			CPU_DEBUG("BPL");
-			goto skip_flag_test;			//skip checking for accumulator value (zero flag, negative flag)
-			break;
-		case 0xF8:			//SED
-			_sr |= SR_FLAG_D;
-			_pc += 1;
-			CPU_DEBUG("SED");
-			goto skip_flag_test;			//skip checking for accumulator value (zero flag, negative flag)
-			break;
-		case 0x78:			//SEI
-			_sr |= SR_FLAG_I;
-			_pc += 1;
-			CPU_DEBUG("SEI");
-			goto skip_flag_test;			//skip checking for accumulator value (zero flag, negative flag)
-			break;
-		case 0x38:			//SEC
-			_sr |= SR_FLAG_C;
-			_pc += 1;
-			CPU_DEBUG("SEC");
-			goto skip_flag_test;			//skip checking for accumulator value (zero flag, negative flag)
-			break;
+	case 0x00:		//BRK
+#if USE_ASM
+		__asm {
+			orr psr, psr, SR_FLAG_B
+			sub operand, lsp, 1
+			//sub lsp, lsp, 1
+			add ptr, _stack, operand
+			strh address, [ptr]
+			//sub lsp, lsp, 1
+			sub operand, operand, 1
+			ldrb psr, [_stack, operand]
+			sub operand, operand, 1
+			mov lsp, operand
+		}
+#else
+		psr |= SR_FLAG_B;			//set break flag
+		_stack[lsp--] = (lpc + 2) >> 8;			//PCH
+		_stack[lsp--] = (lpc + 2);				//PCL
+		_stack[lsp--] = psr;					//SR
+#endif
+		CPU_DEBUG("BRK");
+		//should jump to break interrupt vector (to do)
+		goto skip_flag_test;			//skip checking for accumulator value (zero flag, negative flag)
+		//break;
+	case 0x40:			//RTI		return from interrupt pull sr pull pc
+#if USE_ASM
+		__asm {
+			//load sr from stack, clear break flag
+			add lsp, lsp, 1
+			ldrb psr, [_stack, lsp]
+			and psr, psr, ~SR_FLAG_B
+			//load address from stack	
+			add lsp, lsp, 1
+			add ptr, _stack, lsp
+			ldrh address, [ptr]
+			add lsp, lsp, 1
+			//set pc to loaded address
+			mov lpc, address
+
+		}
+#else
+		psr = _stack[++lsp];
+		psr &= ~SR_FLAG_B;			//clear break flag
+		opcode = _stack[++lsp];
+		address = _stack[++lsp];
+		lpc = (((uint16)address << 8) | opcode);
+#endif
+		CPU_DEBUG("RTI");
+		goto skip_flag_test;			//skip checking for accumulator value (zero flag, negative flag)
+		//break;
+	case 0x20:			//JSR
+#if USE_ASM
+		__asm {
+			//calculate address = pc+2
+			mov address, lpc
+			add address, address, 2
+			//store calculated address to stack
+			sub lsp, lsp, 1
+			add ptr, _stack, lsp
+			strh address, [ptr]
+			sub lsp, lsp, 1
+			//load new address = [opcodes + 1]
+			add ptr, opcodes, 1
+			ldrh lpc, [ptr]
+		}
+#else
+		_stack[lsp--] = (lpc + 2) >> 8;			//PCH
+		_stack[lsp--] = (lpc + 2);				//PCL
+		lpc = ((uint16)opcodes[2] * 256) + opcodes[1];		//absolute addressing mode
+#endif
+		CPU_DEBUG("JSR");
+		goto skip_flag_test;			//skip checking for accumulator value (zero flag, negative flag)
+		//break;
+	case 0x60:			//RTS			return from subroutine
+#if USE_ASM
+		__asm {
+			//load address from stack	
+			add lsp, lsp, 1
+			add ptr, _stack, lsp
+			ldrh address, [ptr]
+			add lsp, lsp, 1
+			//set pc to loaded address
+			add lpc, address, 1
+		}
+#else
+		opcode = _stack[++lsp];
+		address = _stack[++lsp];
+		lpc = (((uint16)address << 8) | opcode) + 1;
+#endif
+		CPU_DEBUG("RTS");
+		goto skip_flag_test;			//skip checking for accumulator value (zero flag, negative flag)
+		//break;
+	case 0x01:			//ORA Or with accumulator//(indirect, X)  (+2)
+		address = (opcodes[1] + (uint16)lx) & 0xFF;
+		lacc = core_orl(lacc, core_get_mem(core_get_word(address)));
+		lpc += 2;
+		CPU_DEBUG("ORA");
+		break;
+	case 0x05://zeropage  (+2)
+		lacc = core_orl(lacc, core_get_mem(opcodes[1]));
+		lpc += 2;
+		CPU_DEBUG("ORA");
+		break;
+	case 0x09://immdt  (+2)
+		lacc = core_orl(lacc, opcodes[1]);
+		lpc += 2;
+		break;
+	case 0x0d://absolute (+3)
+		lacc = core_orl(lacc, core_get_mem(((uint16)opcodes[2] * 256) + opcodes[1]));
+		lpc += 3;
+		CPU_DEBUG("ORA");
+		break;
+	case 0x11://(indirect), Y  (+2)
+		lacc = core_orl(lacc, core_get_mem((core_get_word(opcodes[1])) + (uint16)ly));
+		lpc += 2;
+		CPU_DEBUG("ORA");
+		break;
+	case 0x15://zeropage, X  (+2)
+		address = (opcodes[1] + lx) & 0xFF;
+		lacc = core_orl(lacc, core_get_mem(address));
+		lpc += 2;
+		CPU_DEBUG("ORA");
+		break;
+	case 0x19://absolute, Y (+3)
+		lacc = core_orl(lacc, core_get_mem((((uint16)opcodes[2] * 256) + opcodes[1]) + ly));
+		lpc += 3;
+		CPU_DEBUG("ORA");
+		break;
+	case 0x1d://absolute, X (+3)
+		lacc = core_orl(lacc, core_get_mem((((uint16)opcodes[2] * 256) + opcodes[1]) + lx));
+		lpc += 3;
+		CPU_DEBUG("ORA");
+		break;
+	case 0x0a:				//ASL arithmetic shift left
+		//lacc = core_asl(lacc, 1);
+		ptr = (uint16)lacc << 1;
+		if (ptr & 0x100) psr |= SR_FLAG_C;
+		else psr &= ~SR_FLAG_C;
+		lacc = ptr;
+		lpc += 1;
+		CPU_DEBUG("ASL");
+		break;
+	case 0x06:					//ASL arithmetic shift left//zeropage  (+2)
+		//operand = core_asl(core_get_mem(opcodes[1]), 1);
+		address = opcodes[1];
+		operand = core_get_mem(address);
+		ptr = (uint16)operand << 1;
+		if (ptr & 0x100) psr |= SR_FLAG_C;
+		else psr &= ~SR_FLAG_C;
+		core_set_mem(address, ptr);
+		lpc += 2;
+		CPU_DEBUG("ASL");
+		break;
+	case 0x0e://absolute (+3)
+		//operand = core_asl(core_get_mem(((uint16)opcodes[2] * 256) + opcodes[1]), 1);
+		address = ((uint16)opcodes[2] * 256) + opcodes[1];
+		operand = core_get_mem(address);
+		ptr = (uint16)operand << 1;
+		if (ptr & 0x100) psr |= SR_FLAG_C;
+		else psr &= ~SR_FLAG_C;
+		core_set_mem(address, ptr);
+		//core_set_mem(((uint16)opcodes[2] * 256) + opcodes[1], operand);
+		lpc += 3;
+		CPU_DEBUG("ASL");
+		break;
+	case 0x16:	//zeropage, X  (+2)
+		address = (opcodes[1] + lx) & 0xFF;
+		//operand = core_asl(core_get_mem(address), 1);
+		operand = core_get_mem(address);
+		ptr = (uint16)operand << 1;
+		if (ptr & 0x100) psr |= SR_FLAG_C;
+		else psr &= ~SR_FLAG_C;
+		core_set_mem(address, ptr);
+		//core_set_mem(address, operand);
+		lpc += 2;
+		CPU_DEBUG("ASL");
+		break;
+	case 0x1e://absolute, X (+3)
+		address = (((uint16)opcodes[2] * 256) + opcodes[1]) + lx;
+		//operand = core_asl(core_get_mem(address), 1);
+		operand = core_get_mem(address);
+		ptr = (uint16)operand << 1;
+		if (ptr & 0x100) psr |= SR_FLAG_C;
+		else psr &= ~SR_FLAG_C;
+		core_set_mem(address, ptr);
+		//core_set_mem(address, operand);
+		lpc += 3;
+		CPU_DEBUG("ASL");
+		break;
+	case 0x08:			//PHP			push status register
+		_stack[lsp--] = psr;
+		lpc += 1;
+		CPU_DEBUG("PHP");
+		goto skip_flag_test;			//skip checking for accumulator value (zero flag, negative flag)
+		//break;
+	case 0x28:			//PLP			pull status register		10
+		psr = _stack[++lsp];
+		psr &= ~SR_FLAG_B;
+		lpc += 1;
+		CPU_DEBUG("PLP");
+		goto skip_flag_test;			//skip checking for accumulator value (zero flag, negative flag)
+		//break;
+	case 0x48:			//PHA			push accumulator
+		_stack[lsp--] = lacc;
+		lpc += 1;
+		CPU_DEBUG("PHA");
+		goto skip_flag_test;			//skip checking for accumulator value (zero flag, negative flag)
+		//break;
+	case 0x68:			//PLA			pull accumulator
+		lacc = _stack[++lsp];
+		lpc += 1;
+		CPU_DEBUG("PLA");
+		break;
+	case 0x18:			//CLC
+		psr &= ~SR_FLAG_C;
+		lpc += 1;
+		CPU_DEBUG("CLC");
+		goto skip_flag_test;			//skip checking for accumulator value (zero flag, negative flag)
+		//break;
+	case 0x58:			//CLI
+		psr &= ~SR_FLAG_I;
+		lpc += 1;
+		CPU_DEBUG("CLI");
+		goto skip_flag_test;			//skip checking for accumulator value (zero flag, negative flag)
+		//break;
+	case 0xB8:			//CLV
+		psr &= ~SR_FLAG_V;
+		lpc += 1;
+		CPU_DEBUG("CLV");
+		goto skip_flag_test;			//skip checking for accumulator value (zero flag, negative flag)
+		//break;
+	case 0xD8:			//CLD
+		psr &= ~SR_FLAG_D;
+		lpc += 1;
+		CPU_DEBUG("CLD");
+		goto skip_flag_test;			//skip checking for accumulator value (zero flag, negative flag)
+		//break;
+	case 0x24:			//BIT//zeropage
+		operand = core_get_mem(opcodes[1]);
+		if (operand & 0x80) psr |= SR_FLAG_N;
+		else psr &= ~SR_FLAG_N;
+		if (operand & 0x40) psr |= SR_FLAG_V;
+		else psr &= ~SR_FLAG_V;
+		if (core_and(lacc, operand) == 0) psr |= SR_FLAG_Z;
+		else psr &= ~SR_FLAG_Z;
+		lpc += 2;
+		CPU_DEBUG("BIT");
+		goto skip_flag_test;			//skip checking for accumulator value (zero flag, negative flag)
+	case 0x2c://absolute
+		operand = core_get_mem(((uint16)opcodes[2] * 256) + opcodes[1]);
+		if (operand & 0x80) psr |= SR_FLAG_N;
+		else psr &= ~SR_FLAG_N;
+		if (operand & 0x40) psr |= SR_FLAG_V;
+		else psr &= ~SR_FLAG_V;
+		if (core_and(lacc, operand) == 0) psr |= SR_FLAG_Z;
+		else psr &= ~SR_FLAG_Z;
+		lpc += 3;
+		CPU_DEBUG("BIT");
+		goto skip_flag_test;			//skip checking for accumulator value (zero flag, negative flag)
+
+	case 0x21:			//AND//(indirect, X)  (+2)
+		address = (opcodes[1] + (uint16)lx) & 0xFF;
+		lacc = core_and(lacc, core_get_mem(core_get_word(address)));
+		lpc += 2;
+		CPU_DEBUG("AND");
+		break;
+	case 0x25:	//zeropage  (+2)
+		lacc = core_and(lacc, core_get_mem(opcodes[1]));
+		lpc += 2;
+		CPU_DEBUG("AND");
+		break;
+	case 0x29:	//immdt  (+2)
+		lacc = core_and(lacc, opcodes[1]);
+		lpc += 2;
+		CPU_DEBUG("AND");
+		break;
+	case 0x2d:	//absolute (+3)
+		lacc = core_and(lacc, core_get_mem(((uint16)opcodes[2] * 256) + opcodes[1]));
+		lpc += 3;
+		CPU_DEBUG("AND");
+		break;
+	case 0x31:	//(indirect), Y  (+2)
+		lacc = core_and(lacc, core_get_mem((core_get_word(opcodes[1])) + (uint16)ly));
+		lpc += 2;
+		CPU_DEBUG("AND");
+		break;
+	case 0x35:	//zeropage, X  (+2)
+		lacc = core_and(lacc, core_get_mem((opcodes[1] + lx) & 0xFF));
+		lpc += 2;
+		CPU_DEBUG("AND");
+		break;
+	case 0x39:	//absolute, Y (+3)
+		lacc = core_and(lacc, core_get_mem((((uint16)opcodes[2] * 256) + opcodes[1]) + ly));
+		lpc += 3;
+		CPU_DEBUG("AND");
+		break;
+	case 0x3d:	//absolute, X (+3)
+		lacc = core_and(lacc, core_get_mem((((uint16)opcodes[2] * 256) + opcodes[1]) + lx));
+		lpc += 3;
+		CPU_DEBUG("AND");
+		break;
+
+	case 0x2a:			//ROL accumulator
+		//lacc = core_rol(lacc, 1);
+		ptr = (uint16)lacc << 1;
+		ptr |= (psr & SR_FLAG_C);
+		if (ptr & 0x100) psr |= SR_FLAG_C;
+		else psr &= ~SR_FLAG_C;
+		lacc = ptr;
+		lpc += 1;
+		CPU_DEBUG("ROL");
+		break;
+	case 0x26:			//ROL	//zeropage  (+2)
+		address = opcodes[1];
+		//operand = core_rol(core_get_mem(opcodes[1]), 1);
+		operand = core_get_mem(opcodes[1]);
+		ptr = (uint16)operand << 1;
+		ptr |= (psr & SR_FLAG_C);
+		if (ptr & 0x100) psr |= SR_FLAG_C;
+		else psr &= ~SR_FLAG_C;
+		core_set_mem(address, ptr);
+		//core_set_mem(opcodes[1], operand);
+		lpc += 2;
+		CPU_DEBUG("ROL");
+		break;
+	case 0x2e://absolute (+3)
+		address = ((uint16)opcodes[2] * 256) + opcodes[1];
+		//operand = core_rol(core_get_mem(address), 1);
+		operand = core_get_mem(address);
+		ptr = (uint16)operand << 1;
+		ptr |= (psr & SR_FLAG_C);
+		if (ptr & 0x100) psr |= SR_FLAG_C;
+		else psr &= ~SR_FLAG_C;
+		core_set_mem(address, ptr);
+		//core_set_mem(address, operand);
+		lpc += 3;
+		CPU_DEBUG("ROL");
+		break;
+	case 0x36://zeropage, X  (+2)
+		address = (opcodes[1] + lx) & 0xFF;
+		//operand = core_rol(core_get_mem(address), 1);
+		operand = core_get_mem(address);
+		ptr = (uint16)operand << 1;
+		ptr |= (psr & SR_FLAG_C);
+		if (ptr & 0x100) psr |= SR_FLAG_C;
+		else psr &= ~SR_FLAG_C;
+		core_set_mem(address, ptr);
+		//core_set_mem(address, operand);
+		lpc += 2;
+		CPU_DEBUG("ROL");
+		break;
+	case 0x3e:	//absolute, X (+3)
+		address = (((uint16)opcodes[2] * 256) + opcodes[1]) + lx;
+		//operand = core_rol(core_get_mem(address), 1);
+		operand = core_get_mem(address);
+		ptr = (uint16)operand << 1;
+		ptr |= (psr & SR_FLAG_C);
+		if (ptr & 0x100) psr |= SR_FLAG_C;
+		else psr &= ~SR_FLAG_C;
+		core_set_mem(address, ptr);
+		//core_set_mem(address, operand);
+		lpc += 3;
+		CPU_DEBUG("ROL");
+		break;
+
+	case 0x4c:			//JMP	//absolute
+		lpc = ((uint16)opcodes[2] * 256) + opcodes[1];
+		CPU_DEBUG("JMP");
+		goto skip_flag_test;			//skip checking for accumulator value (zero flag, negative flag)
+	case 0x6c://indirect
+		if (opcodes[1] != 0xFF) {
+			lpc = core_get_word(((uint16)opcodes[2] * 256) + opcodes[1]);
+		}
+		else {
+			operand = core_get_mem(((uint16)opcodes[2] * 256) + opcodes[1]);
+			address = core_get_mem(((uint16)opcodes[2] * 256));
+			address = (address << 8) | operand;
+			lpc = address;
+		}
+		CPU_DEBUG("JMP");
+		goto skip_flag_test;			//skip checking for accumulator value (zero flag, negative flag)
+
+	case 0x41:			//EOR//(indirect, X)  (+2)
+		address = (opcodes[1] + (uint16)lx) & 0xFF;
+		lacc = core_xor(lacc, core_get_mem(core_get_word(address)));
+		lpc += 2;
+		CPU_DEBUG("EOR");
+		break;
+	case 0x45:	//zeropage  (+2)
+		lacc = core_xor(lacc, core_get_mem(opcodes[1]));
+		lpc += 2;
+		break;
+	case 0x49:	//immdt  (+2)
+		lacc = core_xor(lacc, opcodes[1]);
+		lpc += 2;
+		CPU_DEBUG("EOR");
+		break;
+	case 0x4d:	//absolute (+3)
+		lacc = core_xor(lacc, core_get_mem(((uint16)opcodes[2] * 256) + opcodes[1]));
+		lpc += 3;
+		CPU_DEBUG("EOR");
+		break;
+	case 0x51:	//(indirect), Y  (+2)
+		lacc = core_xor(lacc, core_get_mem((core_get_word(opcodes[1])) + (uint16)ly));
+		lpc += 2;
+		CPU_DEBUG("EOR");
+		break;
+	case 0x55:	//zeropage, X  (+2)
+		lacc = core_xor(lacc, core_get_mem((opcodes[1] + lx) & 0xFF));
+		lpc += 2;
+		CPU_DEBUG("EOR");
+		break;
+	case 0x59:	//absolute, Y (+3)
+		lacc = core_xor(lacc, core_get_mem((((uint16)opcodes[2] * 256) + opcodes[1]) + ly));
+		lpc += 3;
+		CPU_DEBUG("EOR");
+		break;
+	case 0x5d:	//absolute, X (+3)
+		lacc = core_xor(lacc, core_get_mem((((uint16)opcodes[2] * 256) + opcodes[1]) + lx));
+		lpc += 3;
+		CPU_DEBUG("EOR");
+		break;
+
+	case 0x4a:			//LSR accumulator
+		//lacc = core_lsr(lacc, 1);
+		if (lacc & 0x01) psr |= SR_FLAG_C;
+		else psr &= ~SR_FLAG_C;
+		lacc = (uint16)lacc >> 1;
+		lpc += 1;
+		CPU_DEBUG("LSR");
+		break;
+	case 0x46:			//LSR//zeropage  (+2)
+		//operand = core_lsr(core_get_mem(opcodes[1]), 1);
+		address = opcodes[1];
+		operand = core_get_mem(address);
+		if (operand & 0x01) psr |= SR_FLAG_C;
+		else psr &= ~SR_FLAG_C;
+		operand = (uint16)operand >> 1;
+		core_set_mem(address, operand);
+		//core_set_mem(opcodes[1], operand);
+		lpc += 2;
+		CPU_DEBUG("LSR");
+		break;
+	case 0x4e://absolute (+3)
+		//operand = core_lsr(core_get_mem(((uint16)opcodes[2] * 256) + opcodes[1]), 1);
+		address = ((uint16)opcodes[2] * 256) + opcodes[1];
+		operand = core_get_mem(address);
+		if (operand & 0x01) psr |= SR_FLAG_C;
+		else psr &= ~SR_FLAG_C;
+		operand = (uint16)operand >> 1;
+		core_set_mem(address, operand);
+		//core_set_mem(((uint16)opcodes[2] * 256) + opcodes[1], operand);
+		lpc += 3;
+		CPU_DEBUG("LSR");
+		break;
+	case 0x56://zeropage, X  (+2)
+		address = (opcodes[1] + lx) & 0xFF;
+		//operand = core_lsr(core_get_mem(address), 1);
+		operand = core_get_mem(address);
+		if (operand & 0x01) psr |= SR_FLAG_C;
+		else psr &= ~SR_FLAG_C;
+		operand = (uint16)operand >> 1;
+		core_set_mem(address, operand);
+		//core_set_mem(address, operand);
+		lpc += 2;
+		CPU_DEBUG("LSR");
+		break;
+	case 0x5e://absolute, X (+3)
+		address = (((uint16)opcodes[2] * 256) + opcodes[1]) + lx;
+		//operand = core_lsr(core_get_mem(address), 1);
+		operand = core_get_mem(address);
+		if (operand & 0x01) psr |= SR_FLAG_C;
+		else psr &= ~SR_FLAG_C;
+		operand = (uint16)operand >> 1;
+		core_set_mem(address, operand);
+		//core_set_mem(address, operand);
+		lpc += 3;
+		CPU_DEBUG("LSR");
+		break;
+
+	case 0x61:			//ADC		22//(indirect, X)  (+2)
+		address = (opcodes[1] + (uint16)lx) & 0xFF;
+		lacc = core_add(lacc, core_get_mem(core_get_word(address)), &psr);
+		lpc += 2;
+		CPU_DEBUG("ADC");
+		break;
+	case 0x65:	//zeropage  (+2)
+		lacc = core_add(lacc, core_get_mem(opcodes[1]), &psr);
+		lpc += 2;
+		break;
+	case 0x69:	//immdt  (+2)
+		lacc = core_add(lacc, opcodes[1], &psr);
+		lpc += 2;
+		CPU_DEBUG("ADC");
+		break;
+	case 0x6d:	//absolute (+3)
+		lacc = core_add(lacc, core_get_mem(((uint16)opcodes[2] * 256) + opcodes[1]), &psr);
+		lpc += 3;
+		CPU_DEBUG("ADC");
+		break;
+	case 0x71:	//(indirect), Y  (+2)
+		lacc = core_add(lacc, core_get_mem((core_get_word(opcodes[1])) + (uint16)ly), &psr);
+		lpc += 2;
+		CPU_DEBUG("ADC");
+		break;
+	case 0x75:	//zeropage, X  (+2)
+		lacc = core_add(lacc, core_get_mem((opcodes[1] + lx) & 0xFF), &psr);
+		lpc += 2;
+		CPU_DEBUG("ADC");
+		break;
+	case 0x79:	//absolute, Y (+3)
+		lacc = core_add(lacc, core_get_mem((((uint16)opcodes[2] * 256) + opcodes[1]) + ly), &psr);
+		lpc += 3;
+		CPU_DEBUG("ADC");
+		break;
+	case 0x7d:	//absolute, X (+3)
+		lacc = core_add(lacc, core_get_mem((((uint16)opcodes[2] * 256) + opcodes[1]) + lx), &psr);
+		lpc += 3;
+		CPU_DEBUG("ADC");
+		break;
+
+	case 0x6a:			//ROR accumulator
+		//lacc = core_ror(lacc, 1);
+		//csr = (psr & SR_FLAG_C);
+		ptr = lacc;
+		if ((psr & SR_FLAG_C)) ptr |= 0x100;
+		if (ptr & 0x01) psr |= SR_FLAG_C;
+		else psr &= ~SR_FLAG_C;
+		lacc = (uint16)ptr >> 1;
+		lpc += 1;
+		CPU_DEBUG("ROR");
+		break;
+	case 0x66:			//ROR//zeropage  (+2)
+		address = opcodes[1];
+		ptr = core_get_mem(address);
+		//operand = core_ror(core_get_mem(opcodes[1]), 1);
+		if ((psr & SR_FLAG_C)) ptr |= 0x100;
+		if (ptr & 0x01) psr |= SR_FLAG_C;
+		else psr &= ~SR_FLAG_C;
+		ptr = (uint16)ptr >> 1;
+		core_set_mem(address, ptr);
+		lpc += 2;
+		CPU_DEBUG("ROR");
+		break;
+	case 0x6e://absolute (+3)
+		address = ((uint16)opcodes[2] * 256) + opcodes[1];
+		ptr = core_get_mem(address);
+		//operand = core_ror(core_get_mem(((uint16)opcodes[2] * 256) + opcodes[1]), 1);
+		if ((psr & SR_FLAG_C)) ptr |= 0x100;
+		if (ptr & 0x01) psr |= SR_FLAG_C;
+		else psr &= ~SR_FLAG_C;
+		ptr = (uint16)ptr >> 1;
+		core_set_mem(address, ptr);
+		lpc += 3;
+		CPU_DEBUG("ROR");
+		break;
+	case 0x76://zeropage, X  (+2)
+		address = (opcodes[1] + lx) & 0xFF;
+		ptr = core_get_mem(address);
+		//operand = core_ror(core_get_mem(address), 1);
+		if ((psr & SR_FLAG_C)) ptr |= 0x100;
+		if (ptr & 0x01) psr |= SR_FLAG_C;
+		else psr &= ~SR_FLAG_C;
+		ptr = (uint16)ptr >> 1;
+		core_set_mem(address, ptr);
+		//core_set_mem(address, operand);
+		lpc += 2;
+		CPU_DEBUG("ROR");
+		break;
+	case 0x7e://absolute, X (+3)
+		address = (((uint16)opcodes[2] * 256) + opcodes[1]) + lx;
+		ptr = core_get_mem(address);
+		//operand = core_ror(core_get_mem(address), 1);
+		if ((psr & SR_FLAG_C)) ptr |= 0x100;
+		if (ptr & 0x01) psr |= SR_FLAG_C;
+		else psr &= ~SR_FLAG_C;
+		ptr = (uint16)ptr >> 1;
+		core_set_mem(address, ptr);
+		//core_set_mem(address, operand);
+		lpc += 3;
+		CPU_DEBUG("ROR");
+		break;
+
+	case 0x81:			//STA//(indirect, X)  (+2)
+		address = (opcodes[1] + (uint16)lx) & 0xFF;
+		core_set_mem(core_get_word(address), lacc);
+		lpc += 2;
+		CPU_DEBUG("STA");
+		goto skip_flag_test;			//skip checking for accumulator value (zero flag, negative flag)
+	case 0x85://zeropage  (+2)
+		core_set_mem(opcodes[1], lacc);
+		lpc += 2;
+		CPU_DEBUG("STA");
+		goto skip_flag_test;			//skip checking for accumulator value (zero flag, negative flag)
+	case 0x8d://absolute (+3)
+		core_set_mem(((uint16)opcodes[2] * 256) + opcodes[1], lacc);
+		lpc += 3;
+		CPU_DEBUG("STA");
+		goto skip_flag_test;			//skip checking for accumulator value (zero flag, negative flag)
+	case 0x91://(indirect), Y  (+2)
+		core_set_mem((core_get_word(opcodes[1])) + (uint16)ly, lacc);
+		lpc += 2;
+		CPU_DEBUG("STA");
+		goto skip_flag_test;			//skip checking for accumulator value (zero flag, negative flag)
+	case 0x95://zeropage, X  (+2)
+		core_set_mem((opcodes[1] + lx) & 0xFF, lacc);
+		lpc += 2;
+		CPU_DEBUG("STA");
+		goto skip_flag_test;			//skip checking for accumulator value (zero flag, negative flag)
+	case 0x99:	//absolute, Y (+3)
+		core_set_mem((((uint16)opcodes[2] * 256) + opcodes[1]) + ly, lacc);
+		lpc += 3;
+		CPU_DEBUG("STA");
+		goto skip_flag_test;			//skip checking for accumulator value (zero flag, negative flag)
+	case 0x9d:	//absolute, X (+3)
+		core_set_mem((((uint16)opcodes[2] * 256) + opcodes[1]) + lx, lacc);
+		lpc += 3;
+		CPU_DEBUG("STA");
+		goto skip_flag_test;			//skip checking for accumulator value (zero flag, negative flag)
+
+	case 0x84:			//STY	//zeropage  (+2)
+		core_set_mem(opcodes[1], ly);
+		lpc += 2;
+		CPU_DEBUG("STY");
+		goto skip_flag_test;			//skip checking for accumulator value (zero flag, negative flag)
+	case 0x8c://absolute (+3)
+		core_set_mem(((uint16)opcodes[2] * 256) + opcodes[1], ly);
+		lpc += 3;
+		CPU_DEBUG("STY");
+		goto skip_flag_test;			//skip checking for accumulator value (zero flag, negative flag)
+	case 0x94:	//zeropage, X  (+2)
+		core_set_mem((opcodes[1] + lx) & 0xFF, ly);
+		lpc += 2;
+		CPU_DEBUG("STY");
+		goto skip_flag_test;			//skip checking for accumulator value (zero flag, negative flag)
+
+	case 0x86:			//STX//zeropage  (+2)
+		core_set_mem(opcodes[1], lx);
+		lpc += 2;
+		CPU_DEBUG("STX");
+		goto skip_flag_test;			//skip checking for accumulator value (zero flag, negative flag)
+	case 0x8e://absolute (+3)
+		core_set_mem(((uint16)opcodes[2] * 256) + opcodes[1], lx);
+		lpc += 3;
+		CPU_DEBUG("STX");
+		goto skip_flag_test;			//skip checking for accumulator value (zero flag, negative flag)
+	case 0x96://zeropage, Y  (+2)
+		core_set_mem((opcodes[1] + ly) & 0xFF, lx);
+		lpc += 2;
+		CPU_DEBUG("STX");
+		goto skip_flag_test;			//skip checking for accumulator value (zero flag, negative flag)
+
+	case 0xA0:			//LDY
+		ly = opcodes[1];
+		lpc += 2;
+		if (ly == 0) psr |= SR_FLAG_Z;
+		else psr &= ~SR_FLAG_Z;
+		if (ly & 0x80) psr |= SR_FLAG_N;
+		else psr &= ~SR_FLAG_N;
+		CPU_DEBUG("LDY");
+		goto skip_flag_test;			//skip checking for accumulator value (zero flag, negative flag)
+		//break;
+	case 0xA4:			//LDY	//zeropage  (+2)
+		ly = core_get_mem(opcodes[1]);
+		lpc += 2;
+		if (ly == 0) psr |= SR_FLAG_Z;
+		else psr &= ~SR_FLAG_Z;
+		if (ly & 0x80) psr |= SR_FLAG_N;
+		else psr &= ~SR_FLAG_N;
+		CPU_DEBUG("LDY");
+		goto skip_flag_test;			//skip checking for accumulator value (zero flag, negative flag)
+	case 0xAc://absolute (+3)
+		ly = core_get_mem(((uint16)opcodes[2] * 256) + opcodes[1]);
+		lpc += 3;
+		if (ly == 0) psr |= SR_FLAG_Z;
+		else psr &= ~SR_FLAG_Z;
+		if (ly & 0x80) psr |= SR_FLAG_N;
+		else psr &= ~SR_FLAG_N;
+		CPU_DEBUG("LDY");
+		goto skip_flag_test;			//skip checking for accumulator value (zero flag, negative flag)
+	case 0xB4://zeropage, X  (+2)
+		ly = core_get_mem((opcodes[1] + lx) & 0xFF);
+		lpc += 2;
+		if (ly == 0) psr |= SR_FLAG_Z;
+		else psr &= ~SR_FLAG_Z;
+		if (ly & 0x80) psr |= SR_FLAG_N;
+		else psr &= ~SR_FLAG_N;
+		CPU_DEBUG("LDY");
+		goto skip_flag_test;			//skip checking for accumulator value (zero flag, negative flag)
+	case 0xBc://absolute, X (+3)
+		address = (((uint16)opcodes[2] * 256) + opcodes[1]) + lx;
+		ly = core_get_mem(address);
+		lpc += 3;
+		if (ly == 0) psr |= SR_FLAG_Z;
+		else psr &= ~SR_FLAG_Z;
+		if (ly & 0x80) psr |= SR_FLAG_N;
+		else psr &= ~SR_FLAG_N;
+		CPU_DEBUG("LDY");
+		goto skip_flag_test;			//skip checking for accumulator value (zero flag, negative flag)
+
+	case 0xA1:			//LDA//(indirect, X)  (+2)
+		address = (opcodes[1] + (uint16)lx) & 0xFF;
+		lacc = core_lda(lacc, core_get_mem(core_get_word(address)));
+		lpc += 2;
+		CPU_DEBUG("LDA");
+		break;
+	case 0xA5:	//zeropage  (+2)
+		address = opcodes[1];
+		lacc = core_lda(lacc, core_get_mem(address));
+		lpc += 2;
+		CPU_DEBUG("LDA");
+		break;
+	case 0xA9:	//immdt  (+2)
+		lacc = core_lda(lacc, opcodes[1]);
+		lpc += 2;
+		CPU_DEBUG("LDA");
+		break;
+	case 0xAd://absolute (+3)
+		address = ((uint16)opcodes[2] * 256) + opcodes[1];
+		lacc = core_lda(lacc, core_get_mem(address));
+		lpc += 3;
+		CPU_DEBUG("LDA");
+		break;
+	case 0xB1:	//(indirect), Y  (+2)
+		address = (core_get_word(opcodes[1])) + (uint16)ly;
+		lacc = core_lda(lacc, core_get_mem(address));
+		lpc += 2;
+		CPU_DEBUG("LDA");
+		break;
+	case 0xB5:	//zeropage, X  (+2)
+		address = (opcodes[1] + lx) & 0xFF;
+		lacc = core_lda(lacc, core_get_mem(address));
+		lpc += 2;
+		CPU_DEBUG("LDA");
+		break;
+	case 0xB9:		//absolute, Y (+3)
+		address = (((uint16)opcodes[2] * 256) + opcodes[1]) + ly;
+		lacc = core_lda(lacc, core_get_mem(address));
+		lpc += 3;
+		CPU_DEBUG("LDA");
+		break;
+	case 0xBd:	//absolute, X (+3)
+		address = (((uint16)opcodes[2] * 256) + opcodes[1]) + lx;
+		lacc = core_lda(lacc, core_get_mem(address));
+		lpc += 3;
+		CPU_DEBUG("LDA");
+		break;
+
+	case 0xA2:			//LDX
+		lx = opcodes[1];
+		lpc += 2;
+		if (lx == 0) psr |= SR_FLAG_Z;
+		else psr &= ~SR_FLAG_Z;
+		if (lx & 0x80) psr |= SR_FLAG_N;
+		else psr &= ~SR_FLAG_N;
+		CPU_DEBUG("LDX");
+		goto skip_flag_test;			//skip checking for accumulator value (zero flag, negative flag)
+	case 0xA6:	//zeropage  (+2)
+		lx = core_get_mem(opcodes[1]);
+		lpc += 2;
+		if (lx == 0) psr |= SR_FLAG_Z;
+		else psr &= ~SR_FLAG_Z;
+		if (lx & 0x80) psr |= SR_FLAG_N;
+		else psr &= ~SR_FLAG_N;
+		CPU_DEBUG("LDX");
+		goto skip_flag_test;			//skip checking for accumulator value (zero flag, negative flag)
+	case 0xAe:	//absolute (+3)
+		lx = core_get_mem(((uint16)opcodes[2] * 256) + opcodes[1]);
+		lpc += 3;
+		if (lx == 0) psr |= SR_FLAG_Z;
+		else psr &= ~SR_FLAG_Z;
+		if (lx & 0x80) psr |= SR_FLAG_N;
+		else psr &= ~SR_FLAG_N;
+		CPU_DEBUG("LDX");
+		goto skip_flag_test;			//skip checking for accumulator value (zero flag, negative flag)
+	case 0xB6:	//zeropage, Y  (+2)
+		lx = core_get_mem((opcodes[1] + ly) & 0xFF);
+		lpc += 2;
+		if (lx == 0) psr |= SR_FLAG_Z;
+		else psr &= ~SR_FLAG_Z;
+		if (lx & 0x80) psr |= SR_FLAG_N;
+		else psr &= ~SR_FLAG_N;
+		CPU_DEBUG("LDX");
+		goto skip_flag_test;			//skip checking for accumulator value (zero flag, negative flag)
+	case 0xBe:	//absolute, Y (+3)
+		address = (((uint16)opcodes[2] * 256) + opcodes[1]) + ly;
+		lx = core_get_mem(address);
+		lpc += 3;
+		if (lx == 0) psr |= SR_FLAG_Z;
+		else psr &= ~SR_FLAG_Z;
+		if (lx & 0x80) psr |= SR_FLAG_N;
+		else psr &= ~SR_FLAG_N;
+		CPU_DEBUG("LDX");
+		goto skip_flag_test;			//skip checking for accumulator value (zero flag, negative flag)
+
+	case 0xA8:			//TAY		accumulator to y
+		ly = lacc;
+		lpc += 1;
+		if (ly == 0) psr |= SR_FLAG_Z;
+		else psr &= ~SR_FLAG_Z;
+		if (ly & 0x80) psr |= SR_FLAG_N;
+		else psr &= ~SR_FLAG_N;
+		CPU_DEBUG("TAY");
+		goto skip_flag_test;			//skip checking for accumulator value (zero flag, negative flag)
+		//break;
+	case 0xAA:			//TAX		accumulator to x
+		lx = lacc;
+		lpc += 1;
+		if (lx == 0) psr |= SR_FLAG_Z;
+		else psr &= ~SR_FLAG_Z;
+		if (lx & 0x80) psr |= SR_FLAG_N;
+		else psr &= ~SR_FLAG_N;
+		CPU_DEBUG("TAX");
+		goto skip_flag_test;			//skip checking for accumulator value (zero flag, negative flag)
+		//break;
+	case 0xBA:			//TSX		sp to x
+		lx = lsp;
+		lpc += 1;
+		if (lx == 0) psr |= SR_FLAG_Z;
+		else psr &= ~SR_FLAG_Z;
+		if (lx & 0x80) psr |= SR_FLAG_N;
+		else psr &= ~SR_FLAG_N;
+		CPU_DEBUG("TSX");
+		goto skip_flag_test;			//skip checking for accumulator value (zero flag, negative flag)
+		//break;
+	case 0x8A:			//TXA		x to accumulator
+		lacc = lx;
+		lpc += 1;
+		CPU_DEBUG("TXA");
+		break;
+	case 0x98:			//TYA		y to accumulator
+		lacc = ly;
+		lpc += 1;
+		CPU_DEBUG("TYA");
+		break;
+	case 0x9A:			//TXS		x to stack pointer
+		lsp = lx;
+		lpc += 1;
+		CPU_DEBUG("TXS");
+		goto skip_flag_test;			//skip checking for accumulator value (zero flag, negative flag)
+		//break;
+	case 0xC0:			//CPY	//immediate  (+2)
+		core_cmp(ly, opcodes[1], psr);
+		lpc += 2;
+		CPU_DEBUG("CPY");
+		goto skip_flag_test;			//skip checking for accumulator value (zero flag, negative flag)
+	case 0xC4://zeropage  (+2)
+		core_cmp(ly, core_get_mem(opcodes[1]), psr);
+		lpc += 2;
+		CPU_DEBUG("CPY");
+		goto skip_flag_test;			//skip checking for accumulator value (zero flag, negative flag)
+	case 0xCc://absolute (+3)
+		core_cmp(ly, core_get_mem(((uint16)opcodes[2] * 256) + opcodes[1]), psr);
+		lpc += 3;
+		CPU_DEBUG("CPY");
+		goto skip_flag_test;			//skip checking for accumulator value (zero flag, negative flag)
+
+	case 0xC1:			//CMP//(indirect, X)  (+2)
+		address = (opcodes[1] + (uint16)lx) & 0xFF;
+		core_cmp(lacc, core_get_mem(core_get_word(address)), psr);
+		lpc += 2;
+		CPU_DEBUG("CMP");
+		goto skip_flag_test;			//skip checking for accumulator value (zero flag, negative flag)
+	case 0xC5://zeropage  (+2)
+		core_cmp(lacc, core_get_mem(opcodes[1]), psr);
+		lpc += 2;
+		CPU_DEBUG("CMP");
+		goto skip_flag_test;			//skip checking for accumulator value (zero flag, negative flag)
+	case 0xC9:	//immdt  (+2)
+		core_cmp(lacc, opcodes[1], psr);
+		lpc += 2;
+		CPU_DEBUG("CMP");
+		goto skip_flag_test;			//skip checking for accumulator value (zero flag, negative flag)
+	case 0xCd:	//absolute (+3)
+		core_cmp(lacc, core_get_mem(((uint16)opcodes[2] * 256) + opcodes[1]), psr);
+		lpc += 3;
+		CPU_DEBUG("CMP");
+		goto skip_flag_test;			//skip checking for accumulator value (zero flag, negative flag)
+	case 0xd1:	//(indirect), Y  (+2)
+		core_cmp(lacc, core_get_mem((core_get_word(opcodes[1])) + (uint16)ly), psr);
+		lpc += 2;
+		CPU_DEBUG("CMP");
+		goto skip_flag_test;			//skip checking for accumulator value (zero flag, negative flag)
+	case 0xd5:	//zeropage, X  (+2)
+		core_cmp(lacc, core_get_mem((opcodes[1] + lx) & 0xFF), psr);
+		lpc += 2;
+		CPU_DEBUG("CMP");
+		goto skip_flag_test;			//skip checking for accumulator value (zero flag, negative flag)
+	case 0xd9:	//absolute, Y (+3)
+		core_cmp(lacc, core_get_mem((((uint16)opcodes[2] * 256) + opcodes[1]) + ly), psr);
+		lpc += 3;
+		CPU_DEBUG("CMP");
+		goto skip_flag_test;			//skip checking for accumulator value (zero flag, negative flag)
+	case 0xdd:	//absolute, X (+3)
+		core_cmp(lacc, core_get_mem((((uint16)opcodes[2] * 256) + opcodes[1]) + lx), psr);
+		lpc += 3;
+		CPU_DEBUG("CMP");
+		goto skip_flag_test;			//skip checking for accumulator value (zero flag, negative flag)
+
+	case 0xC6:			//DEC//zeropage  (+2)
+		operand = core_get_mem(opcodes[1]);
+		operand--;
+		core_set_mem(opcodes[1], operand);
+		lpc += 2;
+		if (operand == 0) psr |= SR_FLAG_Z;
+		else psr &= ~SR_FLAG_Z;
+		if (operand & 0x80) psr |= SR_FLAG_N;
+		else psr &= ~SR_FLAG_N;
+		CPU_DEBUG("DEC");
+		goto skip_flag_test;			//skip checking for accumulator value (zero flag, negative flag)
+	case 0xCE:	//absolute (+3)
+		operand = core_get_mem(((uint16)opcodes[2] * 256) + opcodes[1]);
+		operand--;
+		core_set_mem(((uint16)opcodes[2] * 256) + opcodes[1], operand);
+		lpc += 3;
+		if (operand == 0) psr |= SR_FLAG_Z;
+		else psr &= ~SR_FLAG_Z;
+		if (operand & 0x80) psr |= SR_FLAG_N;
+		else psr &= ~SR_FLAG_N;
+		CPU_DEBUG("DEC");
+		goto skip_flag_test;			//skip checking for accumulator value (zero flag, negative flag)
+	case 0xD6:		//zeropage, X  (+2)
+		address = (opcodes[1] + lx) & 0xFF;
+		operand = core_get_mem(address);
+		operand--;
+		core_set_mem(address, operand);
+		lpc += 2;
+		if (operand == 0) psr |= SR_FLAG_Z;
+		else psr &= ~SR_FLAG_Z;
+		if (operand & 0x80) psr |= SR_FLAG_N;
+		else psr &= ~SR_FLAG_N;
+		CPU_DEBUG("DEC");
+		goto skip_flag_test;			//skip checking for accumulator value (zero flag, negative flag)
+	case 0xDE:	//absolute, X (+3)
+		address = (((uint16)opcodes[2] * 256) + opcodes[1]) + lx;
+		operand = core_get_mem(address);
+		operand--;
+		core_set_mem(address, operand);
+		lpc += 3;
+		if (operand == 0) psr |= SR_FLAG_Z;
+		else psr &= ~SR_FLAG_Z;
+		if (operand & 0x80) psr |= SR_FLAG_N;
+		else psr &= ~SR_FLAG_N;
+		CPU_DEBUG("DEC");
+		goto skip_flag_test;			//skip checking for accumulator value (zero flag, negative flag)
+
+	case 0xC8:			//INY		increment y
+		ly++;
+		lpc += 1;
+		if (ly == 0) psr |= SR_FLAG_Z;
+		else psr &= ~SR_FLAG_Z;
+		if (ly & 0x80) psr |= SR_FLAG_N;
+		else psr &= ~SR_FLAG_N;
+		CPU_DEBUG("INY");
+		goto skip_flag_test;			//skip checking for accumulator value (zero flag, negative flag)
+		//break;
+	case 0xCA:			//DEX		decrement x
+		lx--;
+		lpc += 1;
+		if (lx == 0) psr |= SR_FLAG_Z;
+		else psr &= ~SR_FLAG_Z;
+		if (lx & 0x80) psr |= SR_FLAG_N;
+		else psr &= ~SR_FLAG_N;
+		CPU_DEBUG("DEX");
+		goto skip_flag_test;			//skip checking for accumulator value (zero flag, negative flag)
+		//break;
+	case 0x88:			//DEY			30
+		ly--;
+		lpc += 1;
+		if (ly == 0) psr |= SR_FLAG_Z;
+		else psr &= ~SR_FLAG_Z;
+		if (ly & 0x80) psr |= SR_FLAG_N;
+		else psr &= ~SR_FLAG_N;
+		CPU_DEBUG("DEY");
+		goto skip_flag_test;			//skip checking for accumulator value (zero flag, negative flag)
+		//break;
+	case 0xe8:			//INX
+		lx++;
+		lpc += 1;
+		if (lx == 0) psr |= SR_FLAG_Z;
+		else psr &= ~SR_FLAG_Z;
+		if (lx & 0x80) psr |= SR_FLAG_N;
+		else psr &= ~SR_FLAG_N;
+		CPU_DEBUG("INX");
+		goto skip_flag_test;			//skip checking for accumulator value (zero flag, negative flag)
+		//break;
+	case 0xE0:			//CPX			50//immediate  (+2)
+		core_cmp(lx, opcodes[1], psr);
+		lpc += 2;
+		CPU_DEBUG("CPX");
+		goto skip_flag_test;			//skip checking for accumulator value (zero flag, negative flag)
+	case 0xE4:		//zeropage  (+2)
+		core_cmp(lx, core_get_mem(opcodes[1]), psr);
+		lpc += 2;
+		CPU_DEBUG("CPX");
+		goto skip_flag_test;			//skip checking for accumulator value (zero flag, negative flag)
+	case 0xEC:	//absolute (+3)
+		core_cmp(lx, core_get_mem(((uint16)opcodes[2] * 256) + opcodes[1]), psr);
+		lpc += 3;
+		CPU_DEBUG("CPX");
+		goto skip_flag_test;			//skip checking for accumulator value (zero flag, negative flag)
+
+	case 0xE1:			//SBC	//(indirect, X)  (+2)
+		address = (opcodes[1] + (uint16)lx) & 0xFF;
+		lacc = core_sub(lacc, core_get_mem(core_get_word(address)), &psr);
+		lpc += 2;
+		CPU_DEBUG("SBC");
+		break;
+	case 0xE5://zeropage  (+2)
+		lacc = core_sub(lacc, core_get_mem(opcodes[1]), &psr);
+		lpc += 2;
+		CPU_DEBUG("SBC");
+		break;
+	case 0xE9:	//immdt  (+2)
+		lacc = core_sub(lacc, opcodes[1], &psr);
+		lpc += 2;
+		CPU_DEBUG("SBC");
+		break;
+	case 0xED:	//absolute (+3)
+		lacc = core_sub(lacc, core_get_mem(((uint16)opcodes[2] * 256) + opcodes[1]), &psr);
+		lpc += 3;
+		CPU_DEBUG("SBC");
+		break;
+	case 0xF1:	//(indirect), Y  (+2)
+		lacc = core_sub(lacc, core_get_mem((core_get_word(opcodes[1])) + (uint16)ly), &psr);
+		lpc += 2;
+		CPU_DEBUG("SBC");
+		break;
+	case 0xF5:		//zeropage, X  (+2)
+		lacc = core_sub(lacc, core_get_mem((opcodes[1] + lx) & 0xFF), &psr);
+		lpc += 2;
+		CPU_DEBUG("SBC");
+		break;
+	case 0xF9:		//absolute, Y (+3)
+		lacc = core_sub(lacc, core_get_mem((((uint16)opcodes[2] * 256) + opcodes[1]) + ly), &psr);
+		lpc += 3;
+		CPU_DEBUG("SBC");
+		break;
+	case 0xFD:	//absolute, X (+3)
+		lacc = core_sub(lacc, core_get_mem((((uint16)opcodes[2] * 256) + opcodes[1]) + lx), &psr);
+		lpc += 3;
+		CPU_DEBUG("SBC");
+		break;
+
+	case 0xe6:			//INC//zeropage  (+2)
+		operand = core_get_mem(opcodes[1]);
+		operand++;
+		core_set_mem(opcodes[1], operand);
+		lpc += 2;
+		if (operand == 0) psr |= SR_FLAG_Z;
+		else psr &= ~SR_FLAG_Z;
+		if (operand & 0x80) psr |= SR_FLAG_N;
+		else psr &= ~SR_FLAG_N;
+		CPU_DEBUG("INC");
+		goto skip_flag_test;			//skip checking for accumulator value (zero flag, negative flag)
+	case 0xeE:	//absolute (+3)
+		operand = core_get_mem(((uint16)opcodes[2] * 256) + opcodes[1]);
+		operand++;
+		core_set_mem(((uint16)opcodes[2] * 256) + opcodes[1], operand);
+		lpc += 3;
+		if (operand == 0) psr |= SR_FLAG_Z;
+		else psr &= ~SR_FLAG_Z;
+		if (operand & 0x80) psr |= SR_FLAG_N;
+		else psr &= ~SR_FLAG_N;
+		CPU_DEBUG("INC");
+		goto skip_flag_test;			//skip checking for accumulator value (zero flag, negative flag)
+	case 0xf6:	//zeropage, X  (+2)
+		address = (opcodes[1] + lx) & 0xFF;
+		operand = core_get_mem(address);
+		operand++;
+		core_set_mem(address, operand);
+		lpc += 2;
+		if (operand == 0) psr |= SR_FLAG_Z;
+		else psr &= ~SR_FLAG_Z;
+		if (operand & 0x80) psr |= SR_FLAG_N;
+		else psr &= ~SR_FLAG_N;
+		CPU_DEBUG("INC");
+		goto skip_flag_test;			//skip checking for accumulator value (zero flag, negative flag)
+	case 0xfE:	//absolute, X (+3)
+		address = (((uint16)opcodes[2] * 256) + opcodes[1]) + lx;
+		operand = core_get_mem(address);
+		operand++;
+		core_set_mem(address, operand);
+		lpc += 3;
+		if (operand == 0) psr |= SR_FLAG_Z;
+		else psr &= ~SR_FLAG_Z;
+		if (operand & 0x80) psr |= SR_FLAG_N;
+		else psr &= ~SR_FLAG_N;
+		CPU_DEBUG("INC");
+		goto skip_flag_test;			//skip checking for accumulator value (zero flag, negative flag)
+
+	case 0xea:			//NOP
+		lpc += 1;
+		CPU_DEBUG("NOP");
+		goto skip_flag_test;			//skip checking for accumulator value (zero flag, negative flag)
+		//break;
+	case 0xF0:			//BEQ  branch on equal
+		if ((psr & SR_FLAG_Z)) lpc += (int8)opcodes[1];
+		lpc += 2;
+		CPU_DEBUG("BEQ");
+		goto skip_flag_test;			//skip checking for accumulator value (zero flag, negative flag)
+		//break;
+	case 0xD0:			//BNE  branch on not equal
+		if ((psr & SR_FLAG_Z) == 0) lpc += (int8)opcodes[1];
+		lpc += 2;
+		CPU_DEBUG("BNE");
+		goto skip_flag_test;			//skip checking for accumulator value (zero flag, negative flag)
+		//break;
+	case 0xB0:			//BCS	branch on carry set	40
+		if ((psr & SR_FLAG_C)) lpc += (int8)opcodes[1];
+		lpc += 2;
+		CPU_DEBUG("BCS");
+		goto skip_flag_test;			//skip checking for accumulator value (zero flag, negative flag)
+		//break;
+	case 0x90:			//BCC  branch on carry clear
+		if ((psr & SR_FLAG_C) == 0) lpc += (int8)opcodes[1];
+		lpc += 2;
+		CPU_DEBUG("BCC");
+		goto skip_flag_test;			//skip checking for accumulator value (zero flag, negative flag)
+		//break;
+	case 0x70:			//BVS   branch on overflow set
+		if ((psr & SR_FLAG_V)) lpc += (int8)opcodes[1];
+		lpc += 2;
+		CPU_DEBUG("BVS");
+		goto skip_flag_test;			//skip checking for accumulator value (zero flag, negative flag)
+		//break;
+	case 0x50:			//BVC  branch on overflow clear
+		if ((psr & SR_FLAG_V) == 0) lpc += (int8)opcodes[1];
+		lpc += 2;
+		CPU_DEBUG("BVC");
+		goto skip_flag_test;			//skip checking for accumulator value (zero flag, negative flag)
+		//break;
+	case 0x30:			//BMI   branch on minus
+		if ((psr & SR_FLAG_N)) lpc += (int8)opcodes[1];
+		lpc += 2;
+		CPU_DEBUG("BMI");
+		goto skip_flag_test;			//skip checking for accumulator value (zero flag, negative flag)
+		//break;
+	case 0x10:			//BPL branch on plus
+		if ((psr & SR_FLAG_N) == 0) lpc += (int8)opcodes[1];
+		lpc += 2;
+		CPU_DEBUG("BPL");
+		goto skip_flag_test;			//skip checking for accumulator value (zero flag, negative flag)
+		//break;
+	case 0xF8:			//SED
+		psr |= SR_FLAG_D;
+		lpc += 1;
+		CPU_DEBUG("SED");
+		goto skip_flag_test;			//skip checking for accumulator value (zero flag, negative flag)
+		//break;
+	case 0x78:			//SEI
+		psr |= SR_FLAG_I;
+		lpc += 1;
+		CPU_DEBUG("SEI");
+		goto skip_flag_test;			//skip checking for accumulator value (zero flag, negative flag)
+		//break;
+	case 0x38:			//SEC
+		psr |= SR_FLAG_C;
+		lpc += 1;
+		CPU_DEBUG("SEC");
+		goto skip_flag_test;			//skip checking for accumulator value (zero flag, negative flag)
+		//break;
 
 		//ILLEGAL INSTRUCTION CODES
-		case 0x1A:			//illegal nop
-		case 0x3A:	
-		case 0x5A:	
-		case 0x7A:
-		case 0xDA:	
-		case 0xFA:
-			_pc += 1;
-			CPU_DEBUG("NOP");
-			goto skip_flag_test;			//skip checking for accumulator value (zero flag, negative flag)
+	case 0x1A:			//illegal nop
+	case 0x3A:
+	case 0x5A:
+	case 0x7A:
+	case 0xDA:
+	case 0xFA:
+		lpc += 1;
+		CPU_DEBUG("NOP");
+		goto skip_flag_test;			//skip checking for accumulator value (zero flag, negative flag)
+		//break;
+	case 0x04:			//illegal nop
+	case 0x44:
+	case 0x64:
+	case 0x14:
+	case 0x34:
+	case 0x54:
+	case 0x74:
+	case 0xd4:
+	case 0xf4:
+	case 0x80:
+	case 0x82:
+	case 0x89:
+		lpc += 2;
+		CPU_DEBUG("NOP");
+		goto skip_flag_test;			//skip checking for accumulator value (zero flag, negative flag)
+		//break;
+	case 0x0c:			//illegal nop
+	case 0x1c:
+	case 0x3c:
+	case 0x5c:
+	case 0x7c:
+	case 0xdc:
+	case 0xfc:
+		lpc += 3;
+		CPU_DEBUG("NOP");
+		goto skip_flag_test;			//skip checking for accumulator value (zero flag, negative flag)
+		//break;
+	case 0xAB:			//LAX #immdt
+		lacc = core_lda(lacc, opcodes[1]);
+		lx = lacc;
+		lpc += 2;
+		CPU_DEBUG("LAX");
+		break;
+	case 0xA7:			//LAX
+	case 0xB7:
+	case 0xAF:
+	case 0xBF:
+	case 0xA3:
+	case 0xB3:
+		switch (opcode & 0x1c) {
+		case 0x00:		//(indirect, X)  (+2)
+			address = (opcodes[1] + (uint16)lx) & 0xFF;
+			lacc = core_lda(lacc, core_get_mem(core_get_word(address)));
+			lpc += 2;
 			break;
-		case 0x04:			//illegal nop
-		case 0x44:
-		case 0x64:
-		case 0x14:
-		case 0x34:
-		case 0x54:
-		case 0x74:
-		case 0xd4:
-		case 0xf4:
-		case 0x80:
-		case 0x82:
-		case 0x89:
-			_pc += 2;
-			CPU_DEBUG("NOP");
-			goto skip_flag_test;			//skip checking for accumulator value (zero flag, negative flag)
+		case 0x04:		//zeropage  (+2)
+			lacc = core_lda(lacc, core_get_mem(opcodes[1]));
+			lpc += 2;
 			break;
-		case 0x0c:			//illegal nop
-		case 0x1c:
-		case 0x3c:
-		case 0x5c:
-		case 0x7c:
-		case 0xdc:
-		case 0xfc:
-			_pc += 3;
-			CPU_DEBUG("NOP");
-			goto skip_flag_test;			//skip checking for accumulator value (zero flag, negative flag)
+		case 0x0c:		//absolute (+3)
+			lacc = core_lda(lacc, core_get_mem(((uint16)opcodes[2] * 256) + opcodes[1]));
+			lpc += 3;
 			break;
-		case 0xAB:			//LAX #immdt
-			_acc = core_lda(_acc, opcodes[1]);
-			_x = _acc;
-			_pc += 2;
-			CPU_DEBUG("LAX");
+		case 0x10:		//(indirect), Y  (+2)
+			lacc = core_lda(lacc, core_get_mem((core_get_word(opcodes[1])) + (uint16)ly));
+			lpc += 2;
 			break;
-		case 0xA7:			//LAX
-		case 0xB7:
-		case 0xAF:
-		case 0xBF:
-		case 0xA3:
-		case 0xB3:
-			switch (opcode & 0x1c) {
-			case 0x00:		//(indirect, X)  (+2)
-				address = (opcodes[1] + (uint16)_x) & 0xFF;
-				_acc = core_lda(_acc, core_get_mem(USE_CARRY + core_get_word(address)));
-				_pc += 2;
-				break;
-			case 0x04:		//zeropage  (+2)
-				_acc = core_lda(_acc, core_get_mem(opcodes[1]));
-				_pc += 2;
-				break;
-			case 0x0c:		//absolute (+3)
-				_acc = core_lda(_acc, core_get_mem(((uint16)opcodes[2] * 256) + opcodes[1]));
-				_pc += 3;
-				break;
-			case 0x10:		//(indirect), Y  (+2)
-				_acc = core_lda(_acc, core_get_mem((USE_CARRY + core_get_word(opcodes[1])) + (uint16)_y));
-				_pc += 2;
-				break;
-			case 0x14:		//zeropage, Y  (+2)
-				_acc = core_lda(_acc, core_get_mem((opcodes[1] + _y) & 0xff));
-				_pc += 2;
-				break;
-			case 0x1c:		//absolute, Y (+3)
-				address = (((uint16)opcodes[2] * 256) + opcodes[1]) + _y; 
-				_acc = core_lda(_acc, core_get_mem(address));
-				_pc += 3;
-				break;
-			}
-			_x = _acc;
-			CPU_DEBUG("LAX");
+		case 0x14:		//zeropage, Y  (+2)
+			lacc = core_lda(lacc, core_get_mem((opcodes[1] + ly) & 0xff));
+			lpc += 2;
 			break;
-		case 0x83:			//SAX
-		case 0x87:
-		case 0x8F:
-		case 0x97:
-			operand = _acc & _x;
-			switch (opcode & 0x1c) {
-			case 0x00:		//(indirect, X)  (+2)
-				address = (opcodes[1] + (uint16)_x) & 0xFF;
-				core_set_mem(USE_CARRY + core_get_word(address), operand);
-				_pc += 2;
-				break;
-			case 0x04:		//zeropage  (+2)
-				core_set_mem(opcodes[1], operand);
-				_pc += 2;
-				break;
-			case 0x0c:		//absolute (+3)
-				core_set_mem(((uint16)opcodes[2] * 256) + opcodes[1], operand);
-				_pc += 3;
-				break;
-			case 0x14:		//zeropage, Y  (+2)
-				core_set_mem((opcodes[1] + _y) & 0xFF, operand);
-				_pc += 2;
-				break;
-			}
-			CPU_DEBUG("SAX");
-			goto skip_flag_test;			//skip checking for accumulator value (zero flag, negative flag)
+		case 0x1c:		//absolute, Y (+3)
+			address = (((uint16)opcodes[2] * 256) + opcodes[1]) + ly;
+			lacc = core_lda(lacc, core_get_mem(address));
+			lpc += 3;
 			break;
-		case 0xDB:			//DCP
-			address = (((uint16)opcodes[2] * 256) + opcodes[1]) + _y; 
+		}
+		lx = lacc;
+		CPU_DEBUG("LAX");
+		break;
+	case 0x83:			//SAX
+	case 0x87:
+	case 0x8F:
+	case 0x97:
+		operand = lacc & lx;
+		switch (opcode & 0x1c) {
+		case 0x00:		//(indirect, X)  (+2)
+			address = (opcodes[1] + (uint16)lx) & 0xFF;
+			core_set_mem(core_get_word(address), operand);
+			lpc += 2;
+			break;
+		case 0x04:		//zeropage  (+2)
+			core_set_mem(opcodes[1], operand);
+			lpc += 2;
+			break;
+		case 0x0c:		//absolute (+3)
+			core_set_mem(((uint16)opcodes[2] * 256) + opcodes[1], operand);
+			lpc += 3;
+			break;
+		case 0x14:		//zeropage, Y  (+2)
+			core_set_mem((opcodes[1] + ly) & 0xFF, operand);
+			lpc += 2;
+			break;
+		}
+		CPU_DEBUG("SAX");
+		goto skip_flag_test;			//skip checking for accumulator value (zero flag, negative flag)
+		//break;
+	case 0xDB:			//DCP
+		address = (((uint16)opcodes[2] * 256) + opcodes[1]) + ly;
+		operand = core_get_mem(address);
+		core_set_mem(address, operand - 1);
+		lpc += 3;
+		core_cmp(lacc, operand - 1, psr);
+
+		CPU_DEBUG("DCP");
+		goto skip_flag_test;
+		//break;
+	case 0xC7:			//DCP
+	case 0xD7:
+	case 0xCF:
+	case 0xDF:
+	case 0xC3:
+	case 0xD3:
+		switch (opcode & 0x1C) {
+		case 0x00:		//(indirect, X)  (+2)
+			address = (opcodes[1] + (uint16)lx) & 0xFF;
+			operand = core_get_mem(core_get_word(address));
+			core_set_mem(core_get_word(address), operand - 1);
+			lpc += 2;
+			break;
+		case 0x10:		//(indirect), Y  (+2)
+			address = (core_get_word(opcodes[1])) + (uint16)ly;
 			operand = core_get_mem(address);
 			core_set_mem(address, operand - 1);
-			_pc += 3;
-			core_cmp(_acc, operand - 1);
-
-			CPU_DEBUG("DCP");
-			goto skip_flag_test;
+			lpc += 2;
 			break;
-		case 0xC7:			//DCP
-		case 0xD7:
-		case 0xCF:
-		case 0xDF:
-		case 0xC3:
-		case 0xD3:
-			switch (opcode & 0x1C) {
-			case 0x00:		//(indirect, X)  (+2)
-				address = (opcodes[1] + (uint16)_x) & 0xFF;
-				operand = core_get_mem( USE_CARRY + core_get_word(address) );
-				core_set_mem( USE_CARRY + core_get_word(address), operand - 1);
-				_pc += 2;
-				break;
-			case 0x10:		//(indirect), Y  (+2)
-				address = USE_CARRY + (core_get_word(opcodes[1])) + (uint16)_y;
-				operand = core_get_mem(address);
-				core_set_mem(address, operand - 1);
-				_pc += 2;
-				break;
-			case 0x04:		//zeropage  (+2)
-				operand = core_get_mem(opcodes[1]);
-				core_set_mem(opcodes[1], operand - 1);
-				_pc += 2;
-				break;
-			case 0x0c:		//absolute (+3)
-				operand = core_get_mem(((uint16)opcodes[2] * 256) + opcodes[1]);
-				core_set_mem(((uint16)opcodes[2] * 256) + opcodes[1], operand - 1);
-				_pc += 3;
-				break;
-			case 0x14:		//zeropage, X  (+2)
-				address = (opcodes[1] + _x) & 0xFF;
-				operand = core_get_mem(address);
-				core_set_mem(address, operand - 1);
-				_pc += 2;
-				break;
-			case 0x1c:		//absolute, X (+3)
-				address = (((uint16)opcodes[2] * 256) + opcodes[1]) + _x; 
-				operand = core_get_mem(address);
-				core_set_mem(address, operand - 1);
-				_pc += 3;
-				break;
-			}
-			core_cmp(_acc, operand - 1);
-			CPU_DEBUG("DCP");
-			goto skip_flag_test;
+		case 0x04:		//zeropage  (+2)
+			operand = core_get_mem(opcodes[1]);
+			core_set_mem(opcodes[1], operand - 1);
+			lpc += 2;
 			break;
-		case 0x3B:				//RLA  absolute, Y (+3)
-			address = (((uint16)opcodes[2] * 256) + opcodes[1]) + _y; 
-			operand = core_rol(core_get_mem(address), 1);
-			core_set_mem(address, operand);
-			_pc += 3;
-			_acc = core_and(_acc, operand);
-			CPU_DEBUG("RLA");
+		case 0x0c:		//absolute (+3)
+			operand = core_get_mem(((uint16)opcodes[2] * 256) + opcodes[1]);
+			core_set_mem(((uint16)opcodes[2] * 256) + opcodes[1], operand - 1);
+			lpc += 3;
 			break;
-		case 0x27:				//RLA
-		case 0x37:
-		case 0x2F:
-		case 0x3F:
-		case 0x23:
-		case 0x33:
-			switch (opcode & 0x1c) {
-			case 0x00:		//(indirect, X)  (+2)
-				address = (opcodes[1] + (uint16)_x) & 0xFF;
-				operand = core_rol(core_get_mem( USE_CARRY + core_get_word(address) ), 1);
-				core_set_mem( USE_CARRY + core_get_word(address) , operand);
-				_pc += 2;
-				break;
-			case 0x10:		//(indirect), Y  (+2)
-				address = USE_CARRY + (core_get_word(opcodes[1])) + (uint16)_y;
-				operand = core_rol(core_get_mem(address), 1);
-				core_set_mem(address, operand);
-				_pc += 2;
-				break;
-			case 0x04:		//zeropage  (+2)
-				operand = core_rol(core_get_mem(opcodes[1]), 1);
-				core_set_mem(opcodes[1], operand);
-				_pc += 2;
-				break;
-			case 0x0c:		//absolute (+3)
-				operand = core_rol(core_get_mem(((uint16)opcodes[2] * 256) + opcodes[1]), 1);
-				core_set_mem(((uint16)opcodes[2] * 256) + opcodes[1], operand);
-				_pc += 3;
-				break;
-			case 0x14:		//zeropage, X  (+2)
-				address = (opcodes[1] + _x) & 0xFF;
-				operand = core_rol(core_get_mem(address), 1);
-				core_set_mem(address, operand);
-				_pc += 2;
-				break;
-			case 0x1c:		//absolute, X (+3)
-				address = (((uint16)opcodes[2] * 256) + opcodes[1]) + _x;
-				operand = core_rol(core_get_mem(address), 1);
-				core_set_mem(address, operand);
-				_pc += 3;
-				break;
-			}
-			_acc = core_and(_acc, operand);
-			CPU_DEBUG("RLA");
+		case 0x14:		//zeropage, X  (+2)
+			address = (opcodes[1] + lx) & 0xFF;
+			operand = core_get_mem(address);
+			core_set_mem(address, operand - 1);
+			lpc += 2;
 			break;
-		case 0x7B:				//RRA  absolute, Y (+3)
-			address = (((uint16)opcodes[2] * 256) + opcodes[1]) + _y; 
-			operand = core_ror(core_get_mem(address), 1);
-			core_set_mem(address, operand);
-			_pc += 3;
-			_acc = core_add(_acc, operand);
-			CPU_DEBUG("RRA");
+		case 0x1c:		//absolute, X (+3)
+			address = (((uint16)opcodes[2] * 256) + opcodes[1]) + lx;
+			operand = core_get_mem(address);
+			core_set_mem(address, operand - 1);
+			lpc += 3;
 			break;
-		case 0x67:				//RRA
-		case 0x77:
-		case 0x6F:
-		case 0x7F:
-		case 0x63:
-		case 0x73:
-			switch (opcode & 0x1c) {
-			case 0x00:		//(indirect, X)  (+2)
-				address = (opcodes[1] + (uint16)_x) & 0xFF;
-				operand = core_ror(core_get_mem(USE_CARRY + core_get_word(address)), 1);
-				core_set_mem( USE_CARRY + core_get_word(address) , operand);
-				_pc += 2;
-				break;
-			case 0x10:		//(indirect), Y  (+2)
-				address = USE_CARRY + (core_get_word(opcodes[1])) + (uint16)_y;
-				operand = core_ror(core_get_mem(address), 1);
-				core_set_mem(address, operand);
-				_pc += 2;
-				break;
-			case 0x04:		//zeropage  (+2)
-				operand = core_ror(core_get_mem(opcodes[1]), 1);
-				core_set_mem(opcodes[1], operand);
-				_pc += 2;
-				break;
-			case 0x0c:		//absolute (+3)
-				operand = core_ror(core_get_mem(((uint16)opcodes[2] * 256) + opcodes[1]), 1);
-				core_set_mem(((uint16)opcodes[2] * 256) + opcodes[1], operand);
-				_pc += 3;
-				break;
-			case 0x14:		//zeropage, X  (+2)
-				address = (opcodes[1] + _x) & 0xFF;
-				operand = core_ror(core_get_mem(address), 1);
-				core_set_mem(address, operand);
-				_pc += 2;
-				break;
-			case 0x1c:		//absolute, X (+3)
-				address = (((uint16)opcodes[2] * 256) + opcodes[1]) + _x;
-				operand = core_ror(core_get_mem(address), 1);
-				core_set_mem(address, operand);
-				_pc += 3;
-				break;
-			}
-			_acc = core_add(_acc, operand);
-			CPU_DEBUG("RRA");
+		}
+		core_cmp(lacc, operand - 1, psr);
+		CPU_DEBUG("DCP");
+		goto skip_flag_test;
+		//break;
+	case 0x3B:				//RLA  absolute, Y (+3)
+		address = (((uint16)opcodes[2] * 256) + opcodes[1]) + ly;
+		operand = core_get_mem(address);
+		//operand = core_rol(core_get_mem(address), 1);
+		ptr = (uint16)operand << 1;
+		ptr |= (psr & SR_FLAG_C);
+		if (ptr & 0x100) psr |= SR_FLAG_C;
+		else psr &= ~SR_FLAG_C;
+		core_set_mem(address, ptr);
+		lpc += 3;
+		lacc = core_and(lacc, (uchar)ptr);
+		CPU_DEBUG("RLA");
+		break;
+	case 0x27:				//RLA
+	case 0x37:
+	case 0x2F:
+	case 0x3F:
+	case 0x23:
+	case 0x33:
+		switch (opcode & 0x1c) {
+		case 0x00:		//(indirect, X)  (+2)
+			address = (opcodes[1] + (uint16)lx) & 0xFF;
+			address = core_get_word(address);
+			operand = core_get_mem(address);
+			//operand = core_rol(core_get_mem(core_get_word(address)), 1);
+			ptr = (uint16)operand << 1;
+			ptr |= (psr & SR_FLAG_C);
+			if (ptr & 0x100) psr |= SR_FLAG_C;
+			else psr &= ~SR_FLAG_C;
+			core_set_mem(address, ptr);
+			//core_set_mem(add, operand);
+			lpc += 2;
 			break;
-		case 0x5B:				//SRE  absolute, Y (+3)
-			address = (((uint16)opcodes[2] * 256) + opcodes[1]) + _y ;
-			operand = core_lsr(core_get_mem(address), 1);
-			core_set_mem(address, operand);
-			_pc += 3;
-			_acc = core_xor(_acc, operand);
-
-			CPU_DEBUG("SRE");
+		case 0x10:		//(indirect), Y  (+2)
+			address = (core_get_word(opcodes[1])) + (uint16)ly;
+			operand = core_get_mem(address);
+			//operand = core_rol(core_get_mem(address), 1);
+			ptr = (uint16)operand << 1;
+			ptr |= (psr & SR_FLAG_C);
+			if (ptr & 0x100) psr |= SR_FLAG_C;
+			else psr &= ~SR_FLAG_C;
+			core_set_mem(address, ptr);
+			//core_set_mem(address, operand);
+			lpc += 2;
 			break;
-		case 0x47:				//SRE
-		case 0x57:
-		case 0x4F:
-		case 0x5F:
-		case 0x43:
-		case 0x53:
-			switch (opcode & 0x1c) {
-			case 0x00:		//(indirect, X)  (+2)
-				address = (opcodes[1] + (uint16)_x) & 0xFF;
-				operand = core_lsr(core_get_mem( USE_CARRY + core_get_word(address) ), 1);
-				core_set_mem( USE_CARRY + core_get_word(address) , operand);
-				_pc += 2;
-				break;
-			case 0x10:		//(indirect), Y  (+2)
-				address = USE_CARRY + (core_get_word(opcodes[1])) + (uint16)_y;
-				operand = core_lsr(core_get_mem(address), 1);
-				core_set_mem(address, operand);
-				_pc += 2;
-				break;
-			case 0x04:		//zeropage  (+2)
-				operand = core_lsr(core_get_mem(opcodes[1]), 1);
-				core_set_mem(opcodes[1], operand);
-				_pc += 2;
-				break;
-			case 0x0c:		//absolute (+3)
-				operand = core_lsr(core_get_mem(((uint16)opcodes[2] * 256) + opcodes[1]), 1);
-				core_set_mem(((uint16)opcodes[2] * 256) + opcodes[1], operand);
-				_pc += 3;
-				break;
-			case 0x14:		//zeropage, X  (+2)
-				address = (opcodes[1] + _x) & 0xFF;
-				operand = core_lsr(core_get_mem(address), 1);
-				core_set_mem(address, operand);
-				_pc += 2;
-				break;
-			case 0x1c:		//absolute, X (+3)
-				address = (((uint16)opcodes[2] * 256) + opcodes[1]) + _x  ;
-				operand = core_lsr(core_get_mem(address), 1);
-				core_set_mem(address, operand);
-				_pc += 3;
-				break;
-			}
-			_acc = core_xor(_acc, operand);
-			CPU_DEBUG("SRE");
+		case 0x04:		//zeropage  (+2)
+			address = opcodes[1];
+			operand = core_get_mem(address);
+			//operand = core_rol(core_get_mem(opcodes[1]), 1);
+			ptr = (uint16)operand << 1;
+			ptr |= (psr & SR_FLAG_C);
+			if (ptr & 0x100) psr |= SR_FLAG_C;
+			else psr &= ~SR_FLAG_C;
+			core_set_mem(address, ptr);
+			//core_set_mem(opcodes[1], operand);
+			lpc += 2;
 			break;
-		case 0x9B:			//TAS
+		case 0x0c:		//absolute (+3)
 			address = ((uint16)opcodes[2] * 256) + opcodes[1];
-			_sp = _acc & _x;
-			operand = core_get_word(address) >> 8;
-			core_set_mem(address, operand & _acc & _x);
-			_pc += 3;
-			CPU_DEBUG("TAS");
+			operand = core_get_mem(address);
+			//operand = core_rol(core_get_mem(((uint16)opcodes[2] * 256) + opcodes[1]), 1);
+			ptr = (uint16)operand << 1;
+			ptr |= (psr & SR_FLAG_C);
+			if (ptr & 0x100) psr |= SR_FLAG_C;
+			else psr &= ~SR_FLAG_C;
+			core_set_mem(address, ptr);
+			//core_set_mem(address, operand);
+			lpc += 3;
 			break;
-		case 0xEB:				//USBC  (SBC+NOP)
-			_acc = core_sub(_acc, opcodes[1]);
-			_pc += 2;
-			CPU_DEBUG("USBC");
+		case 0x14:		//zeropage, X  (+2)
+			address = (opcodes[1] + lx) & 0xFF;
+			operand = core_get_mem(address);
+			//operand = core_rol(core_get_mem(address), 1);
+			ptr = (uint16)operand << 1;
+			ptr |= (psr & SR_FLAG_C);
+			if (ptr & 0x100) psr |= SR_FLAG_C;
+			else psr &= ~SR_FLAG_C;
+			core_set_mem(address, ptr);
+			//core_set_mem(address, operand);
+			lpc += 2;
 			break;
-		case 0xFB:			//ISB
-			address = (((uint16)opcodes[2] * 256) + opcodes[1]) + _y; 
+		case 0x1c:		//absolute, X (+3)
+			address = (((uint16)opcodes[2] * 256) + opcodes[1]) + lx;
+			operand = core_get_mem(address);
+			//operand = core_rol(core_get_mem(address), 1);
+			ptr = (uint16)operand << 1;
+			ptr |= (psr & SR_FLAG_C);
+			if (ptr & 0x100) psr |= SR_FLAG_C;
+			else psr &= ~SR_FLAG_C;
+			core_set_mem(address, ptr);
+			//core_set_mem(address, operand);
+			lpc += 3;
+			break;
+		}
+		lacc = core_and(lacc, operand);
+		CPU_DEBUG("RLA");
+		break;
+	case 0x7B:				//RRA  absolute, Y (+3)
+		address = (((uint16)opcodes[2] * 256) + opcodes[1]) + ly;
+		//operand = core_ror(core_get_mem(address), 1);
+		ptr = core_get_mem(address);
+		if ((psr & SR_FLAG_C)) ptr |= 0x100;
+		if (ptr & 0x01) psr |= SR_FLAG_C;
+		else psr &= ~SR_FLAG_C;
+		operand = (uint16)ptr >> 1;
+
+		core_set_mem(address, operand);
+		lpc += 3;
+		lacc = core_add(lacc, operand, &psr);
+		CPU_DEBUG("RRA");
+		break;
+	case 0x67:				//RRA
+	case 0x77:
+	case 0x6F:
+	case 0x7F:
+	case 0x63:
+	case 0x73:
+		switch (opcode & 0x1c) {
+		case 0x00:		//(indirect, X)  (+2)
+			address = (opcodes[1] + (uint16)lx) & 0xFF;
+			address = core_get_word(address);
+			//operand = core_ror(core_get_mem(core_get_word(address)), 1);
+			ptr = core_get_mem(address);
+			if ((psr & SR_FLAG_C)) ptr |= 0x100;
+			if (ptr & 0x01) psr |= SR_FLAG_C;
+			else psr &= ~SR_FLAG_C;
+			operand = (uint16)ptr >> 1;
+
+			core_set_mem(core_get_word(address), operand);
+			lpc += 2;
+			break;
+		case 0x10:		//(indirect), Y  (+2)
+			address = (core_get_word(opcodes[1])) + (uint16)ly;
+			//operand = core_ror(core_get_mem(address), 1);
+			ptr = core_get_mem(address);
+			if ((psr & SR_FLAG_C)) ptr |= 0x100;
+			if (ptr & 0x01) psr |= SR_FLAG_C;
+			else psr &= ~SR_FLAG_C;
+			operand = (uint16)ptr >> 1;
+			core_set_mem(address, operand);
+			lpc += 2;
+			break;
+		case 0x04:		//zeropage  (+2)
+			address = opcodes[1];
+			//operand = core_ror(core_get_mem(opcodes[1]), 1);
+			ptr = core_get_mem(address);
+			if ((psr & SR_FLAG_C)) ptr |= 0x100;
+			if (ptr & 0x01) psr |= SR_FLAG_C;
+			else psr &= ~SR_FLAG_C;
+			operand = (uint16)ptr >> 1;
+			core_set_mem(address, operand);
+			lpc += 2;
+			break;
+		case 0x0c:		//absolute (+3)
+			address = ((uint16)opcodes[2] * 256) + opcodes[1];
+			//operand = core_ror(core_get_mem(((uint16)opcodes[2] * 256) + opcodes[1]), 1);
+			ptr = core_get_mem(address);
+			if ((psr & SR_FLAG_C)) ptr |= 0x100;
+			if (ptr & 0x01) psr |= SR_FLAG_C;
+			else psr &= ~SR_FLAG_C;
+			operand = (uint16)ptr >> 1;
+			core_set_mem(address, operand);
+			lpc += 3;
+			break;
+		case 0x14:		//zeropage, X  (+2)
+			address = (opcodes[1] + lx) & 0xFF;
+			//operand = core_ror(core_get_mem(address), 1);
+			ptr = core_get_mem(address);
+			if ((psr & SR_FLAG_C)) ptr |= 0x100;
+			if (ptr & 0x01) psr |= SR_FLAG_C;
+			else psr &= ~SR_FLAG_C;
+			operand = (uint16)ptr >> 1;
+			core_set_mem(address, operand);
+			lpc += 2;
+			break;
+		case 0x1c:		//absolute, X (+3)
+			address = (((uint16)opcodes[2] * 256) + opcodes[1]) + lx;
+			//operand = core_ror(core_get_mem(address), 1);
+			ptr = core_get_mem(address);
+			if ((psr & SR_FLAG_C)) ptr |= 0x100;
+			if (ptr & 0x01) psr |= SR_FLAG_C;
+			else psr &= ~SR_FLAG_C;
+			operand = (uint16)ptr >> 1;
+			core_set_mem(address, operand);
+			lpc += 3;
+			break;
+		}
+		lacc = core_add(lacc, operand, &psr);
+		CPU_DEBUG("RRA");
+		break;
+	case 0x5B:				//SRE  absolute, Y (+3)
+		address = (((uint16)opcodes[2] * 256) + opcodes[1]) + ly;
+		operand = core_get_mem(address);
+		//operand = core_lsr(core_get_mem(address), 1);
+		if (operand & 0x01) psr |= SR_FLAG_C;
+		else psr &= ~SR_FLAG_C;
+		operand = (uint16)operand >> 1;
+		//core_set_mem(address, operand);
+		lpc += 3;
+		lacc = core_xor(lacc, operand);
+
+		CPU_DEBUG("SRE");
+		break;
+	case 0x47:				//SRE
+	case 0x57:
+	case 0x4F:
+	case 0x5F:
+	case 0x43:
+	case 0x53:
+		switch (opcode & 0x1c) {
+		case 0x00:		//(indirect, X)  (+2)
+			address = (opcodes[1] + (uint16)lx) & 0xFF;
+			address = core_get_word(address);
+			operand = core_get_mem(address);
+			//operand = core_lsr(core_get_mem(core_get_word(address)), 1);
+			if (operand & 0x01) psr |= SR_FLAG_C;
+			else psr &= ~SR_FLAG_C;
+			operand = (uint16)operand >> 1;
+			core_set_mem(address, operand);
+			lpc += 2;
+			break;
+		case 0x10:		//(indirect), Y  (+2)
+			address = (core_get_word(opcodes[1])) + (uint16)ly;
+			operand = core_get_mem(address);
+			//operand = core_lsr(core_get_mem(address), 1);
+			if (operand & 0x01) psr |= SR_FLAG_C;
+			else psr &= ~SR_FLAG_C;
+			operand = (uint16)operand >> 1;
+			core_set_mem(address, operand);
+			lpc += 2;
+			break;
+		case 0x04:		//zeropage  (+2)
+			address = opcodes[1];
+			operand = core_get_mem(address);
+			//operand = core_lsr(core_get_mem(opcodes[1]), 1);
+			if (operand & 0x01) psr |= SR_FLAG_C;
+			else psr &= ~SR_FLAG_C;
+			operand = (uint16)operand >> 1;
+			core_set_mem(address, operand);
+			lpc += 2;
+			break;
+		case 0x0c:		//absolute (+3)
+			address = ((uint16)opcodes[2] * 256) + opcodes[1];
+			operand = core_get_mem(((uint16)opcodes[2] * 256) + opcodes[1]);
+			//operand = core_lsr(core_get_mem(((uint16)opcodes[2] * 256) + opcodes[1]), 1);
+			if (operand & 0x01) psr |= SR_FLAG_C;
+			else psr &= ~SR_FLAG_C;
+			operand = (uint16)operand >> 1;
+			core_set_mem(address, operand);
+			lpc += 3;
+			break;
+		case 0x14:		//zeropage, X  (+2)
+			address = (opcodes[1] + lx) & 0xFF;
+			operand = core_get_mem(address);
+			//operand = core_lsr(core_get_mem(address), 1);
+			if (operand & 0x01) psr |= SR_FLAG_C;
+			else psr &= ~SR_FLAG_C;
+			operand = (uint16)operand >> 1;
+			core_set_mem(address, operand);
+			lpc += 2;
+			break;
+		case 0x1c:		//absolute, X (+3)
+			address = (((uint16)opcodes[2] * 256) + opcodes[1]) + lx;
+			operand = core_get_mem(address);
+			//operand = core_lsr(core_get_mem(address), 1);
+			if (operand & 0x01) psr |= SR_FLAG_C;
+			else psr &= ~SR_FLAG_C;
+			operand = (uint16)operand >> 1;
+			core_set_mem(address, operand);
+			lpc += 3;
+			break;
+		}
+		lacc = core_xor(lacc, operand);
+		CPU_DEBUG("SRE");
+		break;
+	case 0x9B:			//TAS
+		address = ((uint16)opcodes[2] * 256) + opcodes[1];
+		lsp = lacc & lx;
+		operand = core_get_word(address) >> 8;
+		core_set_mem(address, operand & lacc & lx);
+		lpc += 3;
+		CPU_DEBUG("TAS");
+		break;
+	case 0xEB:				//USBC  (SBC+NOP)
+		lacc = core_sub(lacc, opcodes[1], &psr);
+		lpc += 2;
+		CPU_DEBUG("USBC");
+		break;
+	case 0xFB:			//ISB
+		address = (((uint16)opcodes[2] * 256) + opcodes[1]) + ly;
+		operand = core_get_mem(address);
+		core_set_mem(address, operand + 1);
+		lpc += 3;
+		lacc = core_sub(lacc, operand + 1, &psr);
+		CPU_DEBUG("ISB");
+		goto skip_flag_test;
+		//break;
+	case 0xE7:			//ISB
+	case 0xF7:
+	case 0xEF:
+	case 0xFF:
+	case 0xE3:
+	case 0xF3:
+		switch (opcode & 0x1C) {
+		case 0x00:		//(indirect, X)  (+2)
+			address = (opcodes[1] + (uint16)lx) & 0xFF;
+			operand = core_get_mem(core_get_word(address));
+			core_set_mem(core_get_word(address), operand + 1);
+			lpc += 2;
+			break;
+		case 0x10:		//(indirect), Y  (+2)
+			address = (core_get_word(opcodes[1])) + (uint16)ly;
 			operand = core_get_mem(address);
 			core_set_mem(address, operand + 1);
-			_pc += 3;
-			_acc = core_sub(_acc, operand + 1);
-			CPU_DEBUG("ISB");
-			goto skip_flag_test;
+			lpc += 2;
 			break;
-		case 0xE7:			//ISB
-		case 0xF7:
-		case 0xEF:
-		case 0xFF:
-		case 0xE3:
-		case 0xF3:
-			switch (opcode & 0x1C) {
-			case 0x00:		//(indirect, X)  (+2)
-				address = (opcodes[1] + (uint16)_x) & 0xFF;
-				operand = core_get_mem(USE_CARRY + core_get_word(address));
-				core_set_mem(USE_CARRY + core_get_word(address), operand + 1);
-				_pc += 2;
-				break;
-			case 0x10:		//(indirect), Y  (+2)
-				address = USE_CARRY + (core_get_word(opcodes[1])) + (uint16)_y;
-				operand = core_get_mem(address);
-				core_set_mem(address, operand + 1);
-				_pc += 2;
-				break;
-			case 0x04:		//zeropage  (+2)
-				operand = core_get_mem(opcodes[1]);
-				core_set_mem(opcodes[1], operand + 1);
-				_pc += 2;
-				break;
-			case 0x0c:		//absolute (+3)
-				operand = core_get_mem(((uint16)opcodes[2] * 256) + opcodes[1]);
-				core_set_mem(((uint16)opcodes[2] * 256) + opcodes[1], operand + 1);
-				_pc += 3;
-				break;
-			case 0x14:		//zeropage, X  (+2)
-				address = (opcodes[1] + _x) & 0xFF;
-				operand = core_get_mem(address);
-				core_set_mem(address, operand + 1);
-				_pc += 2;
-				break;
-			case 0x1c:		//absolute, X (+3)
-				address = (((uint16)opcodes[2] * 256) + opcodes[1]) + _x ;
-				operand = core_get_mem(address);
-				core_set_mem(address, operand + 1);
-				_pc += 3;
-				break;
-			}
-			_acc = core_sub(_acc, operand + 1);
-			CPU_DEBUG("ISB");
-			goto skip_flag_test;
+		case 0x04:		//zeropage  (+2)
+			operand = core_get_mem(opcodes[1]);
+			core_set_mem(opcodes[1], operand + 1);
+			lpc += 2;
 			break;
-		case 0x1B:				//SLO  absolute, Y (+3)
-			address = (((uint16)opcodes[2] * 256) + opcodes[1]) + _y; 
-			operand = core_asl(core_get_mem(address), 1);
-			core_set_mem(address, operand);
-			_pc += 3;
-			_acc = core_orl(_acc, operand);
-			CPU_DEBUG("SLO");
+		case 0x0c:		//absolute (+3)
+			operand = core_get_mem(((uint16)opcodes[2] * 256) + opcodes[1]);
+			core_set_mem(((uint16)opcodes[2] * 256) + opcodes[1], operand + 1);
+			lpc += 3;
 			break;
-		case 0x07:				//SLO
-		case 0x17:
-		case 0x0F:
-		case 0x1F:
-		case 0x03:
-		case 0x13:
-			switch (opcode & 0x1c) {
-			case 0x00:		//(indirect, X)  (+2)
-				address = (opcodes[1] + (uint16)_x) & 0xFF;
-				operand = core_asl(core_get_mem(USE_CARRY + core_get_word(address)), 1);
-				core_set_mem(USE_CARRY + core_get_word(address), operand);
-				_pc += 2;
-				break;
-			case 0x10:		//(indirect), Y  (+2)
-				address = USE_CARRY + (core_get_word(opcodes[1])) + (uint16)_y;
-				operand = core_asl(core_get_mem(address), 1);
-				core_set_mem(address, operand);
-				_pc += 2;
-				break;
-			case 0x04:		//zeropage  (+2)
-				operand = core_asl(core_get_mem(opcodes[1]), 1);
-				core_set_mem(opcodes[1], operand);
-				_pc += 2;
-				break;
-			case 0x0c:		//absolute (+3)
-				operand = core_asl(core_get_mem(((uint16)opcodes[2] * 256) + opcodes[1]), 1);
-				core_set_mem(((uint16)opcodes[2] * 256) + opcodes[1], operand);
-				_pc += 3;
-				break;
-			case 0x14:		//zeropage, X  (+2)
-				address = (opcodes[1] + _x) & 0xFF;
-				operand = core_asl(core_get_mem(address), 1);
-				core_set_mem(address, operand);
-				_pc += 2;
-				break;
-			case 0x1c:		//absolute, X (+3)
-				address = (((uint16)opcodes[2] * 256) + opcodes[1]) + _x; 
-				operand = core_asl(core_get_mem(address), 1);
-				core_set_mem(address, operand);
-				_pc += 3;
-				break;
-			}
-			_acc = core_orl(_acc, operand);
-			CPU_DEBUG("SLO");
+		case 0x14:		//zeropage, X  (+2)
+			address = (opcodes[1] + lx) & 0xFF;
+			operand = core_get_mem(address);
+			core_set_mem(address, operand + 1);
+			lpc += 2;
 			break;
+		case 0x1c:		//absolute, X (+3)
+			address = (((uint16)opcodes[2] * 256) + opcodes[1]) + lx;
+			operand = core_get_mem(address);
+			core_set_mem(address, operand + 1);
+			lpc += 3;
+			break;
+		}
+		lacc = core_sub(lacc, operand + 1, &psr);
+		CPU_DEBUG("ISB");
+		goto skip_flag_test;
+		//break;
+	case 0x1B:				//SLO  absolute, Y (+3)
+		address = (((uint16)opcodes[2] * 256) + opcodes[1]) + ly;
+		operand = core_get_mem(address);
+		//operand = core_asl(core_get_mem(address), 1);
+		ptr = (uint16)operand << 1;
+		if (ptr & 0x100) psr |= SR_FLAG_C;
+		else psr &= ~SR_FLAG_C;
+		core_set_mem(address, ptr);
+		lpc += 3;
+		lacc = core_orl(lacc, operand);
+		CPU_DEBUG("SLO");
+		break;
+	case 0x07:				//SLO
+	case 0x17:
+	case 0x0F:
+	case 0x1F:
+	case 0x03:
+	case 0x13:
+		switch (opcode & 0x1c) {
+		case 0x00:		//(indirect, X)  (+2)
+			address = (opcodes[1] + (uint16)lx) & 0xFF;
+			address = core_get_word(address);
+			//operand = core_asl(core_get_mem(core_get_word(address)), 1);
+			operand = core_get_mem(address);
+			ptr = (uint16)operand << 1;
+			if (ptr & 0x100) psr |= SR_FLAG_C;
+			else psr &= ~SR_FLAG_C;
+			core_set_mem(address, ptr);
+			//core_set_mem(core_get_word(address), operand);
+			lpc += 2;
+			break;
+		case 0x10:		//(indirect), Y  (+2)
+			address = (core_get_word(opcodes[1])) + (uint16)ly;
+			//operand = core_asl(core_get_mem(address), 1);
+			operand = core_get_mem(address);
+			ptr = (uint16)operand << 1;
+			if (ptr & 0x100) psr |= SR_FLAG_C;
+			else psr &= ~SR_FLAG_C;
+			core_set_mem(address, ptr);
+			//core_set_mem(address, operand);
+			lpc += 2;
+			break;
+		case 0x04:		//zeropage  (+2)
+			address = opcodes[1];
+			//operand = core_asl(core_get_mem(opcodes[1]), 1);
+			operand = core_get_mem(address);
+			ptr = (uint16)operand << 1;
+			if (ptr & 0x100) psr |= SR_FLAG_C;
+			else psr &= ~SR_FLAG_C;
+			core_set_mem(address, ptr);
+			//core_set_mem(opcodes[1], operand);
+			lpc += 2;
+			break;
+		case 0x0c:		//absolute (+3)
+			address = ((uint16)opcodes[2] * 256) + opcodes[1];
+			//operand = core_asl(core_get_mem(((uint16)opcodes[2] * 256) + opcodes[1]), 1);
+			operand = core_get_mem(address);
+			ptr = (uint16)operand << 1;
+			if (ptr & 0x100) psr |= SR_FLAG_C;
+			else psr &= ~SR_FLAG_C;
+			core_set_mem(address, ptr);
+			//core_set_mem(((uint16)opcodes[2] * 256) + opcodes[1], operand);
+			lpc += 3;
+			break;
+		case 0x14:		//zeropage, X  (+2)
+			address = (opcodes[1] + lx) & 0xFF;
+			//operand = core_asl(core_get_mem(address), 1);
+			operand = core_get_mem(address);
+			ptr = (uint16)operand << 1;
+			if (ptr & 0x100) psr |= SR_FLAG_C;
+			else psr &= ~SR_FLAG_C;
+			core_set_mem(address, ptr);
+			//core_set_mem(address, operand);
+			lpc += 2;
+			break;
+		case 0x1c:		//absolute, X (+3)
+			address = (((uint16)opcodes[2] * 256) + opcodes[1]) + lx;
+			//operand = core_asl(core_get_mem(address), 1);
+			operand = core_get_mem(address);
+			ptr = (uint16)operand << 1;
+			if (ptr & 0x100) psr |= SR_FLAG_C;
+			else psr &= ~SR_FLAG_C;
+			core_set_mem(address, ptr);
+			//core_set_mem(address, operand);
+			lpc += 3;
+			break;
+		}
+		lacc = core_orl(lacc, operand);
+		CPU_DEBUG("SLO");
+		break;
 	}
 	//check accumulator
-	if (_acc == 0) _sr |= SR_FLAG_Z;
-	else _sr &= ~SR_FLAG_Z;
-	if (_acc & 0x80) _sr |= SR_FLAG_N;
-	else _sr &= ~SR_FLAG_N;
+	if (lacc == 0) psr |= SR_FLAG_Z;
+	else psr &= ~SR_FLAG_Z;
+	if (lacc & 0x80) psr |= SR_FLAG_N;
+	else psr &= ~SR_FLAG_N;
 skip_flag_test:
-	_sr |= 0x20;							//ignore bit always one
+	psr |= 0x20;							//ignore bit always one
+
+	_sr = psr;
+	_x = lx;
+	_y = ly;
+	_acc = lacc;
+	_pc = lpc;
+	_sp = lsp;
 	return;
 }
 
@@ -1990,10 +2286,10 @@ uchar core_exec(uchar* vbuffer) {
 	core_decode(_sram + (unsigned)_pc);
 	
 	ins_counter++;
-	if ((ins_counter % 30001) == 0) {
+	if ((ins_counter % 7501) == 0) {
 		ppu_set_vblank(1);
 	}
-	if ((ins_counter % 16235) == 0) {
+	if ((ins_counter % 4057) == 0) {
 		ppu_render(vbuffer);
 		//ppu_set_vblank(1);
 		ret = 1;
