@@ -7,5 +7,5 @@ VNES ported on STM32F7 discovery board, running Super Mario Bros, the rom file l
 # README
 
 build requirement : 
-Directx SDK : https://www.microsoft.com/en-us/download/details.aspx?id=6812
-microsoft MFC library
+1. Directx SDK : https://www.microsoft.com/en-us/download/details.aspx?id=6812
+2. microsoft MFC library
